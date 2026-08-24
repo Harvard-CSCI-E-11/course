@@ -1,7 +1,7 @@
-#!/usr/bin/env python3.12
+#!/usr/bin/env python3.14
 """
 The CSCI E-11 e11 program.
-Note that we use python3.12 because that's what's installed on ubuntu 24.04
+The course uses Python 3.14 on Ubuntu 26.04 and AWS Lambda.
 """
 import argparse
 import importlib
@@ -450,13 +450,13 @@ def do_check_syntax(args):
             files_checked += 1
             path = os.path.join(root,fn)[2:] # remove ./
             print("Checking",path)
-            cmd = f"poetry run python -m py_compile {path}"
+            cmd = f"uv run --locked python -m py_compile {path}"
             if subprocess.call(cmd,shell=True)!=0:
                 print(f"{path}: Python syntax error")
                 errors += 1
                 continue
             module_name = path.replace("/",".").replace(".py","")
-            cmd = f"poetry run python -c 'import {module_name}'"
+            cmd = f"uv run --locked python -c 'import {module_name}'"
             p = subprocess.run(cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT, encoding='utf-8',check=False)
             if p.returncode!=0:
                 print(f"{path}: error:\n",p.stdout)
@@ -467,7 +467,7 @@ def do_check_syntax(args):
     print("Total files checked:",files_checked)
     print("Errors:",errors)
     if merror:
-        print("Did you remember to run 'poetry install' ???")
+        print("Did you remember to run 'uv sync --locked' ???")
 
 def do_report_tests(_):
     """Generate markdown report of all available tests across all labs."""

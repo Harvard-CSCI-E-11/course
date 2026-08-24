@@ -1,12 +1,9 @@
 #!/bin/sh
 set -e
 
-# Only touch files that are staged for commit
-files="$(git diff --cached --name-only --diff-filter=ACMR)"
-[ -z "$files" ] && exit 0
-
-# Run your fixer (adjust path + interpreter)
-etc/fix_trailing_whitespace.py $files
-
-# Re-stage in case the fixer modified them
-git add $files
+# Process staged paths one at a time so spaces remain part of the filename.
+git diff --cached --name-only --diff-filter=ACMR | while IFS= read -r file; do
+    [ -z "$file" ] && continue
+    etc/fix_trailing_whitespace.py "$file"
+    git add -- "$file"
+done

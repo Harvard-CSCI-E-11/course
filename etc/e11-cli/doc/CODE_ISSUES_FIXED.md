@@ -73,7 +73,7 @@ This document summarizes the typos, code issues, and refactoring opportunities i
 ### Duplicate Code
 
 14. **Makefile** (line 15)
-    - **Issue**: Duplicate `poetry run pylint e11/.` command
+    - **Issue**: Duplicate dependency-manager invocation of `pylint e11/.`
     - **Fixed**: Removed duplicate line
 
 ## Code Quality Observations

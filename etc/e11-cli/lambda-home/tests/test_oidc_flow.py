@@ -1,11 +1,14 @@
 import urllib.parse
+
 import requests
 
-import home_app.oidc as oidc
+from home_app import oidc
+
 
 def test_end_to_end_oidc_stateless(fake_idp_server, monkeypatch):
     # Wire discovery URL for fake_aws fixture
     import pytest as _pytest
+
     _pytest.discovered = fake_idp_server["discovery"]
 
     # Build openid_config like home.get_odic_config() would

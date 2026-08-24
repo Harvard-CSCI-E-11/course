@@ -2,6 +2,7 @@
 name = "app"
 version = "1.0.0"
 description = "An App for Lab 4, based on the basic blog app built in the Flask tutorial."
+requires-python = ">=3.14,<3.15"
 dependencies = [
     "flask",
 ]

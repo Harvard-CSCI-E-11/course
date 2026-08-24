@@ -16,11 +16,10 @@ export LAB=lab_common
 PYTHON=.venv/bin/python3
 
 $(PYTHON):
-	poetry config virtualenvs.in-project true
-	poetry install		# installs the current poetry.lock, do not update
+	uv sync --locked
 
 lint: $(PYTHON)
-	poetry run pylint *.py
+	uv run --locked pylint *.py
 
 check: $(PYTHON)
 	@echo nothing to check

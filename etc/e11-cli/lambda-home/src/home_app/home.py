@@ -20,86 +20,77 @@ Cookies - just have sid (session ID). If you know it, you are authenticated (the
 
 # at top of home_app/home.py (module import time)
 import base64
+import binascii
+import datetime
 import json
 import os
-from os.path import join
-import binascii
 import time
-import datetime
+from os.path import join
+from typing import Any
 
-from typing import Any, Dict, Tuple, Optional
-
-from boto3.dynamodb.conditions import Key
-
-from itsdangerous import BadSignature, SignatureExpired
 import jinja2
-from jinja2 import Environment, FileSystemLoader, TemplateNotFound
-
-from e11.e11core.utils import (get_log_level)
+from boto3.dynamodb.conditions import Key
 from e11.e11_common import (
+    LAB_CONFIG,
+    LAB_TIMEZONE,
+    SES_VERIFIED_EMAIL,
     A,
     EmailNotRegistered,
     User,
-    convert_dynamodb_item,
-    users_table,
-    queryscan_table,
-    SES_VERIFIED_EMAIL,
-    ses_client,
-    LAB_CONFIG,
-    LAB_TIMEZONE,
-    get_user_from_user_id,
     add_user_log,
+    convert_dynamodb_item,
+    get_user_from_user_id,
+    queryscan_table,
+    ses_client,
+    users_table,
 )
-
 from e11.e11core.constants import (
     API_PATH,
-    GITHUB_REPO_URL,
-    HTTP_OK,
-    HTTP_FOUND,
-    HTTP_BAD_REQUEST,
-    HTTP_FORBIDDEN,
-    HTTP_NOT_FOUND,
-    HTTP_INTERNAL_ERROR,
-    HTML_CONTENT_TYPE,
-    PNG_CONTENT_TYPE,
-    CSS_CONTENT_TYPE,
+    CONTENT_TYPE_HEADER,
     CORS_HEADER,
     CORS_WILDCARD,
-    CONTENT_TYPE_HEADER
+    CSS_CONTENT_TYPE,
+    GITHUB_REPO_URL,
+    HTML_CONTENT_TYPE,
+    HTTP_BAD_REQUEST,
+    HTTP_FORBIDDEN,
+    HTTP_FOUND,
+    HTTP_INTERNAL_ERROR,
+    HTTP_NOT_FOUND,
+    HTTP_OK,
+    PNG_CONTENT_TYPE,
 )
+from e11.e11core.utils import get_log_level, get_logger
 from e11.main import __version__
-from e11.e11core.utils import get_logger
+from itsdangerous import BadSignature, SignatureExpired
+from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
-from . import oidc
-from . import sessions
-from . import api
-from .api import resp_json, make_presigned_url
-
+from . import api, oidc, sessions
+from .api import make_presigned_url, resp_json
+from .common import (
+    COOKIE_NAME,
+    NESTED,
+    SESSION_TTL_SECS,
+    STATIC_DIR,
+    TEMPLATE_DIR,
+    get_cookie_domain,
+    make_cookie,
+)
+from .sessions import (
+    all_sessions_for_email,
+    delete_session_from_event,
+    get_session_from_event,
+    get_user_from_email,
+    new_session,
+)
 from .sqs_support import (
-    is_sqs_event,
     handle_sqs_event,
+    is_sqs_event,
     sqs_send_signed_message,
 )
 
-from .sessions import (
-    get_user_from_email, new_session,
-    get_session_from_event,
-    all_sessions_for_email,
-    delete_session_from_event,
-)
-
-from .common import (
-    make_cookie,
-    get_cookie_domain,
-    COOKIE_NAME,
-    SESSION_TTL_SECS,
-    TEMPLATE_DIR,
-    STATIC_DIR,
-    NESTED
-    )
-
-
 LOGGER = get_logger("home")
+
 
 def send_email2(to_addrs: list[str], email_subject: str, email_body: str):
     r = ses_client.send_email(
@@ -110,10 +101,14 @@ def send_email2(to_addrs: list[str], email_subject: str, email_body: str):
             "Body": {"Text": {"Data": email_body}},
         },
     )
-    LOGGER.info("send_email2 to=%s subject=%s SES response: %s", to_addrs, email_subject, r)
+    LOGGER.info(
+        "send_email2 to=%s subject=%s SES response: %s", to_addrs, email_subject, r
+    )
     return r
 
+
 LastEvaluatedKey = "LastEvaluatedKey"  # pylint: disable=invalid-name
+
 
 def eastern_filter(value):
     """Format a time_t (epoch seconds) as ISO 8601 in EST5EDT."""
@@ -134,10 +129,10 @@ def utc_iso_to_eastern(iso_str: str) -> str:
     try:
         dt = datetime.datetime.fromisoformat(iso_str.replace(" ", "T"))
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=datetime.timezone.utc)
+            dt = dt.replace(tzinfo=datetime.UTC)
         eastern = dt.astimezone(LAB_TIMEZONE)
         return eastern.strftime("%Y-%m-%d %H:%M:%S %Z")
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return iso_str
 
 
@@ -164,11 +159,12 @@ EMAIL_SUBJECT_BASE = "CSCI E-11 Update"
 EMAIL_SUBJECT_NEW_DNS_RECORDS = "New DNS records created for {hostname}"
 EMAIL_SUBJECT_DNS_RECORDS_UPDATED = "DNS records updated for {hostname}"
 
-DOMAIN_SUFFIXES = ['', '-lab1', '-lab2', '-lab3', '-lab4', '-lab5', '-lab6', '-lab7', '-lab8']
-
-
-def resp_text(    status: int,    body: str, headers: Optional[Dict[str, str]] = None,
-                  cookies: Optional[list[str]] = None) -> Dict[str, Any]:
+def resp_text(
+    status: int,
+    body: str,
+    headers: dict[str, str] | None = None,
+    cookies: list[str] | None = None,
+) -> dict[str, Any]:
     """End HTTP event processing with text/html"""
     LOGGER.debug("resp_text(status=%s)", status)
     return {
@@ -182,8 +178,13 @@ def resp_text(    status: int,    body: str, headers: Optional[Dict[str, str]] =
         "cookies": cookies or [],
     }
 
-def resp_png( status: int, png_bytes: bytes, headers: Optional[Dict[str, str]] = None,
-              cookies: Optional[list[str]] = None ) -> Dict[str, Any]:
+
+def resp_png(
+    status: int,
+    png_bytes: bytes,
+    headers: dict[str, str] | None = None,
+    cookies: list[str] | None = None,
+) -> dict[str, Any]:
     """End HTTP event processing with binary PNG"""
     LOGGER.debug("resp_png(status=%s, len=%s)", status, len(png_bytes))
     return {
@@ -199,13 +200,20 @@ def resp_png( status: int, png_bytes: bytes, headers: Optional[Dict[str, str]] =
     }
 
 
-def redirect( location: str, extra_headers: Optional[dict] = None, cookies: Optional[list] = None ):
+def redirect(
+    location: str, extra_headers: dict | None = None, cookies: list | None = None
+):
     """End HTTP event processing with redirect to another website"""
     LOGGER.debug("redirect(%s,%s,%s)", location, extra_headers, cookies)
     headers = {"Location": location}
     if extra_headers:
         headers.update(extra_headers)
-    return {"statusCode": HTTP_FOUND, "headers": headers, "cookies": cookies or [], "body": ""}
+    return {
+        "statusCode": HTTP_FOUND,
+        "headers": headers,
+        "cookies": cookies or [],
+        "body": "",
+    }
 
 
 def error_404(page):
@@ -232,7 +240,8 @@ def static_file(fname):
     except FileNotFoundError:
         return error_404(fname)
 
-def _with_request_log_level(payload: Dict[str, Any]):
+
+def _with_request_log_level(payload: dict[str, Any]):
     """Context manager to temporarily adjust log level from JSON (log_level or LOG_LEVEL)."""
 
     class _Ctx:
@@ -253,7 +262,10 @@ def _with_request_log_level(payload: Dict[str, Any]):
 
 def all_logs_for_userid(user_id):
     """:param userid: The user to fetch logs for"""
-    kwargs = {'KeyConditionExpression':Key(A.USER_ID).eq(user_id) & Key(A.SK).begins_with(A.SK_LOG_PREFIX)}
+    kwargs = {
+        "KeyConditionExpression": Key(A.USER_ID).eq(user_id)
+        & Key(A.SK).begins_with(A.SK_LOG_PREFIX)
+    }
     logs = queryscan_table(users_table.query, kwargs)
     logs = [User(**convert_dynamodb_item(u)) for u in logs]
     return logs
@@ -278,7 +290,9 @@ def do_page(event, status="", extra=""):
     if page:
         try:
             template = env.get_template(page)
-            return resp_text(HTTP_OK, template.render(ses=ses, status=status, extra=extra))
+            return resp_text(
+                HTTP_OK, template.render(ses=ses, status=status, extra=extra)
+            )
         except TemplateNotFound:
             return error_404(page)
 
@@ -295,7 +309,9 @@ def do_page(event, status="", extra=""):
     )
     LOGGER.debug("url=%s issued_at=%s", url, issued_at)
     template = env.get_template("login.html")
-    return resp_text(HTTP_OK, template.render(harvard_key=url, status=status, extra=extra))
+    return resp_text(
+        HTTP_OK, template.render(harvard_key=url, status=status, extra=extra)
+    )
 
 
 def do_dashboard(event):  # pylint: disable=too-many-locals,too-many-branches
@@ -322,38 +338,41 @@ def do_dashboard(event):  # pylint: disable=too-many-locals,too-many-branches
     try:
         user = get_user_from_email(ses.email)
     except EmailNotRegistered:
-        return resp_text(HTTP_INTERNAL_ERROR, f"Internal error: no user for email address {ses.email}")
+        return resp_text(
+            HTTP_INTERNAL_ERROR,
+            f"Internal error: no user for email address {ses.email}",
+        )
 
     # Get the dashboard items --- everything from DynamoDB for this user_id
 
     # This is faster than separately getting the logs, the grades, the images, etc...
-    kwargs = {'KeyConditionExpression':Key(A.USER_ID).eq(user.user_id)}
+    kwargs = {"KeyConditionExpression": Key(A.USER_ID).eq(user.user_id)}
     items = queryscan_table(users_table.query, kwargs)
 
     # Create printable dates from the sortkeys (UTC) and convert to Eastern for display
     for item in items:
-        raw = item['sk'][-26:-7].replace("T", " ")
-        item['datetime'] = utc_iso_to_eastern(raw)
+        raw = item["sk"][-26:-7].replace("T", " ")
+        item["datetime"] = utc_iso_to_eastern(raw)
 
     # Extract out the data
-    logs   = [item for item in items if item[A.SK].startswith(A.SK_LOG_PREFIX)]
+    logs = [item for item in items if item[A.SK].startswith(A.SK_LOG_PREFIX)]
     grades = [item for item in items if item[A.SK].startswith(A.SK_GRADE_PREFIX)]
     images = [item for item in items if item[A.SK].startswith(A.SK_IMAGE_PREFIX)]
 
     # Get the lab out of the grades; normalize pass_names/fail_names (legacy data may have Decimal)
     for grade in grades:
         try:
-            grade['lab'] = grade['sk'].split('#')[1]
+            grade["lab"] = grade["sk"].split("#")[1]
         except IndexError:
-            grade['lab'] = 'n/a'
-        pn = grade.get('pass_names')
-        fn = grade.get('fail_names')
-        grade['pass_names'] = pn if isinstance(pn, list) else []
-        grade['fail_names'] = fn if isinstance(fn, list) else []
+            grade["lab"] = "n/a"
+        pn = grade.get("pass_names")
+        fn = grade.get("fail_names")
+        grade["pass_names"] = pn if isinstance(pn, list) else []
+        grade["fail_names"] = fn if isinstance(fn, list) else []
 
     # sign the image URLs
     for image in images:
-        image['url'] = make_presigned_url(image[A.BUCKET], image[A.KEY])
+        image["url"] = make_presigned_url(image[A.BUCKET], image[A.KEY])
 
     # Compute next_lab: the next lab that is due
     now = datetime.datetime.now(LAB_TIMEZONE)
@@ -365,16 +384,19 @@ def do_dashboard(event):  # pylint: disable=too-many-locals,too-many-branches
         if lab_key in LAB_CONFIG:
             deadline_str = LAB_CONFIG[lab_key]["deadline"]
             # Deadline is in Eastern time (no timezone in string)
-            deadline = datetime.datetime.fromisoformat(deadline_str).replace(tzinfo=LAB_TIMEZONE)
-            if deadline > now:
-                if next_deadline is None or deadline < next_deadline:
-                    next_lab = lab_key
-                    next_deadline = deadline
+            deadline = datetime.datetime.fromisoformat(deadline_str).replace(
+                tzinfo=LAB_TIMEZONE
+            )
+            if deadline > now and (next_deadline is None or deadline < next_deadline):
+                next_lab = lab_key
+                next_deadline = deadline
 
     user_sessions = all_sessions_for_email(user.email)
     template = env.get_template("dashboard.html")
     # Get timezone name for display from LAB_TIMEZONE
-    timezone_name = LAB_TIMEZONE.key if hasattr(LAB_TIMEZONE, 'key') else str(LAB_TIMEZONE)
+    timezone_name = (
+        LAB_TIMEZONE.key if hasattr(LAB_TIMEZONE, "key") else str(LAB_TIMEZONE)
+    )
     # Convert to a more readable format
     if timezone_name == "America/New_York":
         timezone_display = "Eastern Time"
@@ -382,21 +404,22 @@ def do_dashboard(event):  # pylint: disable=too-many-locals,too-many-branches
         # For other timezones, use the key as-is (e.g., "America/Los_Angeles")
         timezone_display = timezone_name
 
-    return resp_text( HTTP_OK,
-                      template.render(
-                          user=user,
-                          ses=ses,
-                          client_ip=client_ip,
-                          sessions=user_sessions,
-                          logs=logs,
-                          grades=grades,
-                          images = images,
-                          next_lab=next_lab,
-                          next_deadline=next_deadline.isoformat() if next_deadline else None,
-                          timezone_display=timezone_display,
-                          now=round(time.time()) ) )
-
-
+    return resp_text(
+        HTTP_OK,
+        template.render(
+            user=user,
+            ses=ses,
+            client_ip=client_ip,
+            sessions=user_sessions,
+            logs=logs,
+            grades=grades,
+            images=images,
+            next_lab=next_lab,
+            next_deadline=next_deadline.isoformat() if next_deadline else None,
+            timezone_display=timezone_display,
+            now=round(time.time()),
+        ),
+    )
 
 
 def oidc_callback(event):
@@ -406,13 +429,16 @@ def oidc_callback(event):
     code = params.get("code")
     state = params.get("state")
     if not code:
-        return {"statusCode": HTTP_BAD_REQUEST, "body": "Missing 'code' in query parameters"}
+        return {
+            "statusCode": HTTP_BAD_REQUEST,
+            "body": "Missing 'code' in query parameters",
+        }
     try:
         obj = oidc.handle_oidc_redirect_stateless(
             openid_config=oidc.get_oidc_config(event),
             callback_params={"code": code, "state": state},
         )
-    except (SignatureExpired, BadSignature):
+    except SignatureExpired, BadSignature:
         return redirect("/expired")
 
     LOGGER.debug("obj=%s", obj)
@@ -472,9 +498,9 @@ def do_login_direct(event):
             # Add padding if needed for base64 decoding
             padding = len(token) % 4
             if padding:
-                token += '=' * (4 - padding)
-            decoded = base64.urlsafe_b64decode(token).decode('utf-8')
-            user_id, course_key = decoded.split(':', 1)
+                token += "=" * (4 - padding)
+            decoded = base64.urlsafe_b64decode(token).decode("utf-8")
+            user_id, course_key = decoded.split(":", 1)
         except (ValueError, UnicodeDecodeError, binascii.Error) as e:
             LOGGER.warning("Invalid token format: %s", e)
             return resp_text(HTTP_BAD_REQUEST, "Invalid token format")
@@ -487,7 +513,7 @@ def do_login_direct(event):
             email_display = user.email or "unknown"
             return resp_text(
                 HTTP_FORBIDDEN,
-                f"Course key mismatch for email {email_display} or email is not registered."
+                f"Course key mismatch for email {email_display} or email is not registered.",
             )
 
         # If user has claims, redirect to regular login
@@ -502,7 +528,10 @@ def do_login_direct(event):
 
         # Set cookie and redirect
         sid_cookie = make_cookie(
-            COOKIE_NAME, ses.sid, max_age=SESSION_TTL_SECS, domain=get_cookie_domain(event)
+            COOKIE_NAME,
+            ses.sid,
+            max_age=SESSION_TTL_SECS,
+            domain=get_cookie_domain(event),
         )
         LOGGER.info("Direct login: created session for email=%s", user.email)
         add_user_log(event, user.user_id, f"Session {ses.sid} created (direct_login)")
@@ -511,14 +540,14 @@ def do_login_direct(event):
     except EmailNotRegistered:
         return resp_text(
             HTTP_FORBIDDEN,
-            "Course key mismatch for email unknown or email is not registered."
+            "Course key mismatch for email unknown or email is not registered.",
         )
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        LOGGER.exception("Error in do_login_direct: %s", e)
+    except Exception:  # pylint: disable=broad-exception-caught
+        LOGGER.exception("Error in do_login_direct")
         return resp_text(HTTP_INTERNAL_ERROR, "Internal server error")
 
 
-def queue_grade(email: str, lab: str, note: None) -> Dict[str, Any]:
+def queue_grade(email: str, lab: str, note: None) -> dict[str, Any]:
     """
     Queue a grading request for a student's lab via SQS.
 
@@ -543,15 +572,20 @@ def queue_grade(email: str, lab: str, note: None) -> Dict[str, Any]:
             A.COURSE_KEY: user.course_key,
         },
         "lab": lab,
-        "note": note
+        "note": note,
     }
 
     # Send the signed message to SQS
     result = sqs_send_signed_message(action="grade", method="POST", payload=payload)
     if message_id := result.get("MessageId"):
-        LOGGER.info("Queued grade request for email=%s lab=%s MessageId=%s", email, lab, message_id)
+        LOGGER.info(
+            "Queued grade request for email=%s lab=%s MessageId=%s",
+            email,
+            lab,
+            message_id,
+        )
     else:
-        LOGGER.error("Could not queue grade request for email=%s lab=%s",email, lab)
+        LOGGER.error("Could not queue grade request for email=%s lab=%s", email, lab)
     return result
 
 
@@ -559,7 +593,7 @@ def queue_grade(email: str, lab: str, note: None) -> Dict[str, Any]:
 ## Parse Lambda Events and cookies
 # This is the entry point
 # pylint: disable=too-many-locals
-def parse_event(event: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]]:
+def parse_event(event: dict[str, Any]) -> tuple[str, str, dict[str, Any]]:
     """parser HTTP API v2 event"""
     stage = event.get("requestContext", {}).get("stage", "")
     path = event.get("rawPath") or event.get("path") or "/"
@@ -582,27 +616,35 @@ def parse_event(event: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]]:
         payload = {}
     return method, path, payload
 
+
 def parse_s3_event(event):
-    if event.get('source','')=='aws.s3' and event.get('detail-type','')=='Object Created':
-        detail = event.get('detail',{})
+    if (
+        event.get("source", "") == "aws.s3"
+        and event.get("detail-type", "") == "Object Created"
+    ):
+        detail = event.get("detail", {})
 
-        request_id = detail.get('request-id','')
+        request_id = detail.get("request-id", "")
 
-        bucket = detail.get('bucket',{}).get('name')
-        key = detail.get('object',{}).get('key')
+        bucket = detail.get("bucket", {}).get("name")
+        key = detail.get("object", {}).get("key")
         if (bucket is None) or (key is None):
-            LOGGER.error("bucket=%s key=%s event=%s",bucket,key,event)
-            return resp_json(200, {"error":True, 'bucket':bucket, 'key':key}) # 200 so we do not get retried
+            LOGGER.error("bucket=%s key=%s event=%s", bucket, key, event)
+            return resp_json(
+                200, {"error": True, "bucket": bucket, "key": key}
+            )  # 200 so we do not get retried
         return request_id, bucket, key
     return None, None, None
+
 
 ################################################################
 ## main entry point from lambda system
 
+
 def safe_dump_environment():
-    for k,v in sorted(os.environ.items()):
-        if k in ('AWS_SECRET_ACCESS_KEY','AWS_SESSION_TOKEN'):
-            v = '********'
+    for k, v in sorted(os.environ.items()):
+        if k in ("AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"):
+            v = "********"
         print(f"{k} = {v}")
 
 
@@ -615,7 +657,9 @@ def lambda_handler(event, context):
     # Check for upload
     request_id, bucket, key = parse_s3_event(event)
     if bucket is not None:
-        LOGGER.info("request_id=%s",request_id)         # Make sure this is not a duplicate request?
+        LOGGER.info(
+            "request_id=%s", request_id
+        )  # Make sure this is not a duplicate request?
         return api.api_upload_callback(bucket, key)
 
     # Check for sqs
@@ -700,7 +744,10 @@ def lambda_handler(event, context):
                     return redirect(LAB_CONFIG["lab8"]["redirect"])
 
                 case ("GET", "/version"):
-                    return resp_text(HTTP_OK, f"version: {__version__} of {os.environ.get('DEPLOYMENT_TIMESTAMP')}\n")
+                    return resp_text(
+                        HTTP_OK,
+                        f"version: {__version__} of {os.environ.get('DEPLOYMENT_TIMESTAMP')}\n",
+                    )
 
                 # This must be last - catch all GETs, check for /static
                 # used for serving css and javascript
@@ -734,17 +781,19 @@ def lambda_handler(event, context):
                     if cookie.startswith("AuthSid="):
                         session_id = cookie.split("=")[1]
                         break
-            except Exception as ef:  # pylint: disable=broad-exception-caught
-                LOGGER.exception("Unhandled inner exception. ef=%s", ef)
-            LOGGER.exception("Unhandled exception! Session ID: %s  e=%s", session_id, e)
+            except Exception:  # pylint: disable=broad-exception-caught
+                LOGGER.exception("Unhandled inner exception")
+            LOGGER.exception("Unhandled exception! Session ID: %s", session_id)
 
             if is_browser_request:
                 # Return HTML error page for browser requests
                 template = env.get_template("error_generic.html")
                 return resp_text(
-                    HTTP_INTERNAL_ERROR, template.render(session_id=session_id, error_message=str(e))
+                    HTTP_INTERNAL_ERROR,
+                    template.render(session_id=session_id, error_message=str(e)),
                 )
             # Return JSON for API requests
             return resp_json(
-                HTTP_INTERNAL_ERROR, {"error": True, "message": str(e), "session_id": session_id}
+                HTTP_INTERNAL_ERROR,
+                {"error": True, "message": str(e), "session_id": session_id},
             )

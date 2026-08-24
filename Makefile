@@ -2,11 +2,15 @@
 # Master makefile to check all of the projects in this repo.
 #
 
-ALLDIRS := $(wildcard lab*) etc/e11-cli $(wildcard etc/e11-cli/lambda-*)
+PYPROJECT_DIRS := \
+	lab1 lab2 lab3 lab4 lab5 lab6 lab7_linux lab7_memento \
+	lab8_linux lab8_memento lab_common \
+	etc/e11-cli etc/e11-cli/lambda-home etc/e11-cli/lambda-leaderboard
+LINTDIRS := $(PYPROJECT_DIRS)
 
 lint-all:
 	@fail=0; \
-	for dir in $(ALLDIRS); do \
+	for dir in $(LINTDIRS); do \
 		printf "Linting %s... \033[K\r" "$$dir"; \
 		if ! out=$$(cd $$dir && make -s lint </dev/null 2>&1); then \
 			printf "\n"; \
@@ -23,19 +27,21 @@ lint-all:
 	fi
 
 check-all:
-	for dir in $(ALLDIRS) ; do (echo "=== $$dir ===" ; cd  $$dir && make check) ; done
+	$(MAKE) lint-all
+	$(MAKE) -C etc/e11-cli check-all
 
 update-all:
-	for dir in $(ALLDIRS) ; do (echo "=== $$dir ===" ; cd  $$dir && pwd && poetry update) ; done
+	for dir in $(PYPROJECT_DIRS) ; do (echo "=== $$dir ===" ; cd $$dir && uv lock --upgrade) ; done
 
 sync-all:
-	for dir in $(ALLDIRS) ; do (echo "=== $$dir ===" ; cd  $$dir && pwd && poetry sync) ; done
+	for dir in $(PYPROJECT_DIRS) ; do (echo "=== $$dir ===" ; cd $$dir && uv sync --locked) ; done
 
 lock-all:
-	for dir in $(ALLDIRS) ; do (echo "=== $$dir ===" ; cd  $$dir && pwd && poetry lock) ; done
+	for dir in $(PYPROJECT_DIRS) ; do (echo "=== $$dir ===" ; cd $$dir && uv lock) ; done
 
 install:
-	(cd etc/e11-cli; make lint && pipx install . --force)
+	$(MAKE) -C etc/e11-cli lint
+	uv tool install --force ./etc/e11-cli
 
 clean-all:
 	for name in node_modules .venv __pycache__ .pytest_cache ; do find . -name $$name -print0 | xargs -0 rm -rf ; done

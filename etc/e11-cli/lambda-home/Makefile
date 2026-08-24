@@ -1,5 +1,5 @@
-# ===== e11 home Makefile (Poetry Version) =====
-# Uses Poetry for dependency management and Make for SAM/AWS task running.
+# ===== e11 home Makefile =====
+# Uses uv for dependency management and Make for SAM/AWS task running.
 #
 # Note: everything must be in same AWS region
 
@@ -24,12 +24,16 @@ export PIP_DISABLE_PIP_VERSION_CHECK=1
 export PIP_NO_INPUT=1
 export PYTHONDONTWRITEBYTECODE=1
 
-# --- Poetry-based Targets ---
+# --- uv-based Targets ---
 
-.PHONY: install lint check test clean
+.PHONY: install format lint check test clean
 install:
-	@echo "--- Installing dependencies with Poetry ---"
-	poetry install --with dev
+	@echo "--- Installing dependencies with uv ---"
+	uv sync --locked
+
+format: install
+	uv run --locked ruff check --fix
+	uv run --locked ruff format
 
 # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html
 install-sam-ubuntu:
@@ -41,29 +45,28 @@ install-sam-ubuntu:
 
 lint: vend-e11
 	@echo "--- Validating imports from vendored wheel ---"
-	poetry run pytest -xvs tests/test_import_validation.py
-	poetry run djlint $(DJLINT_FLAGS) $(TEMPLATE_DIR)/*.html
-	poetry run ruff check --fix
-	poetry run pylint src
-	poetry run pyright src
+	uv run --locked pytest -xvs tests/test_import_validation.py
+	uv run --locked djlint $(DJLINT_FLAGS) $(TEMPLATE_DIR)/*.html
+	uv run --locked ruff check
+	uv run --locked pylint src
+	uv run --locked pyright src
 	sam validate --config-file samconfig-prod.toml -t template.yaml --lint
 	sam validate --config-file samconfig-stage.toml -t template.yaml --lint
 
 check: vend-e11 lint
 	@echo "--- Running tests with pytest ---"
-	poetry run pytest -q --cov=. --cov-report=term --cov-report=xml --junitxml=junit.xml -o junit_family=legacy --log-cli-level=DEBUG tests/
+	uv run --locked pytest -q --cov=. --cov-report=term --cov-report=xml --junitxml=junit.xml -o junit_family=legacy --log-cli-level=DEBUG tests/
 
 # This target generates the requirements.txt for SAM to use
-src/requirements.txt: poetry.lock pyproject.toml
-	@echo "--- Exporting requirements.txt from Poetry ---"
-	poetry export -f requirements.txt --output src/requirements.txt --without-hashes
+src/requirements.txt: uv.lock pyproject.toml
+	@echo "--- Exporting requirements.txt from uv ---"
+	uv export --locked --no-dev --no-emit-project --no-hashes --format requirements.txt --output-file src/requirements.txt
 
 distclean:
 	@echo "--- Cleaning up project files ---"
 	/bin/rm -rf .venv
 	/bin/rm -rf .aws-sam/build
 	/bin/rm -f src/requirements.txt
-	/bin/rm -f poetry.lock
 	/bin/rm -f lambda.zip
 	/bin/rm -rf .mypy_cache .pytest_cache
 	find . -type d -name "__pycache__" -exec rm -rf {} +
@@ -71,8 +74,8 @@ distclean:
 # --- Custom Vendoring
 .PHONY: vend-e11
 vend-e11: install
-	@echo "Building src/home_app/e11.whl via pip"
-	( cd .. && poetry run python -m pip wheel --no-deps -w dist . )
+	@echo "Building src/home_app/e11.whl via uv"
+	( cd .. && uv build --wheel --out-dir dist )
 	@echo "Installing wheel into src/home_app/ as e11.whl"
 	install -d src/home_app
 	install -m 444 $$(ls -t ../dist/*.whl | head -1) src/home_app/e11.whl
@@ -80,7 +83,7 @@ vend-e11: install
 
 # --- AWS SAM/CLI Targets
 # These are deployment tasks, perfect for Make.
-# They now depend on the new poetry-based targets.
+# They depend on the uv-based targets above.
 
 .PHONY: prod-vbd stage-vbd
 prod-vbd: template.yaml samconfig-prod.toml src/requirements.txt vend-e11 check

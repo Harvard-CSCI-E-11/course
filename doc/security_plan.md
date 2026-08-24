@@ -50,11 +50,11 @@ All access to the tables is moderated through python functions running in AWS La
 ### Implementation Languages
 All code is implemented in Python.
 
-* The student VMs run Ubuntu 24.04 LTS with a default python install of Python 3.12, so we use Python 3.12 on the student VMs.
+* The student VMs run Ubuntu 26.04 LTS with its default Python 3.14 installation.
 
-* The AWS Lambda uses Python 3.13.
+* The AWS Lambdas use the managed Python 3.14 runtime.
 
-Because two versions of python are used, the `e11` module is tested with both Python 3.12 and Python 3.13 as part of the unit tests.
+The `e11` module and both Lambdas are tested with Python 3.14.
 
 ### Code Quality
 

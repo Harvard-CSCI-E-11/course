@@ -1,6 +1,6 @@
 # Testing Strategy
 
-This document records the current test strategy for the e11 repo. The supported command interface is the Makefile; do not document direct pytest, Poetry, or ad hoc shell commands as normal workflows.
+This document records the current test strategy for the e11 repo. The supported command interface is the Makefile; do not document direct pytest, uv, or ad hoc shell commands as normal workflows.
 
 ## Current Policy
 

@@ -1,5 +1,5 @@
-# Use the official Ubuntu 22.04 base image
-FROM ubuntu:22.04
+# Use the official Ubuntu 26.04 base image
+FROM ubuntu:26.04
 
 # Install necessary packages for sudo
 RUN apt-get update && \

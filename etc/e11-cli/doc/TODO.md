@@ -4,6 +4,10 @@ This backlog is ranked by ease of addressing, not by severity. Items marked
 `done` were fixed in the cleanup that created this document; remaining items
 need follow-up changes.
 
+Reviewed against the repository on 2026-08-23. All items still marked `todo`,
+`easy`, `medium`, or `hard` below remain relevant. The `done` entries are retained
+only as completion history and are not active TODOs.
+
 ## Review Findings, Ranked By Ease
 
 1. `done` Fix wrong e11 package paths in documentation.
@@ -41,8 +45,9 @@ need follow-up changes.
 2. `easy` Decide whether `lambda-home/notes.md` belongs in version control.
    - It contains an old production AccessDenied note. Move durable information into docs or delete it.
 
-3. `easy` Replace `ruff check --fix` in `lambda-home/Makefile` lint.
-   - A lint/check target should report drift, not mutate files. Add a separate formatting target if auto-fix is wanted.
+3. `done` Make `lambda-home/Makefile` lint non-mutating.
+   - `lint` now runs `ruff check`; the separate `format` target applies safe
+     Ruff fixes and formatting explicitly.
 
 4. `easy` Keep pylint-compatible subprocess tests without hiding behavior.
    - `e11/e11admin/staff.py` currently disables `consider-using-with` for the interactive SSH process so Ctrl-C handling remains directly testable.
@@ -70,9 +75,11 @@ need follow-up changes.
    - `lambda-home/src/home_app/api.py` returns `dict(os.environ)` from `ping` and `ping-mail`.
    - Even if secrets are usually not present, this is broader diagnostic exposure than a public-ish status API should provide.
 
-11. `medium` Normalize project tooling.
-   - The repo has Poetry configuration and lock files plus a root `uv.lock`.
-   - Decide whether Poetry remains canonical for this repo or migrate deliberately; do not leave mixed tooling unexplained.
+11. `done` Normalize project tooling.
+   - All projects now use standard project metadata, uv lockfiles, and uv-backed
+     Makefile workflows.
+   - The incomplete three-line lockfile was replaced by a complete dependency
+     lock generated from the migrated metadata.
 
 12. `hard` Build a practical SSH integration fixture.
    - Current SSH tests appropriately mock subprocess behavior, but grading and access flows still lack a real local SSH boundary.

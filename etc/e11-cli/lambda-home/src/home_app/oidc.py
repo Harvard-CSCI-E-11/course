@@ -2,21 +2,20 @@
 oidc implementation
 """
 
-import os
-import json
 import base64
 import hashlib
+import json
+import logging
+import os
 import secrets
 import time
-import logging
-from urllib.parse import urlencode, urlparse, urlunparse, parse_qsl
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
-import requests
 import jwt
-from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
-
-from e11.e11core.utils import get_logger
+import requests
 from e11 import e11_common
+from e11.e11core.utils import get_logger
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 from .common import get_public_host
 
@@ -30,20 +29,25 @@ def get_oidc_config(event=None):
     """Return the config from AWS Secrets.
     If a public host is configured for the stack, use it for redirect_uri. Otherwise
     fall back to the request host so OAuth returns to the same host the user started from."""
-    oidc_secret_id = os.environ.get("OIDC_SECRET_ID","please define OIDC_SECRET_ID")
-    LOGGER.debug("fetching secret %s",oidc_secret_id)
-    harvard_secrets = json.loads(e11_common.secretsmanager_client.get_secret_value(SecretId=oidc_secret_id)['SecretString'])
-    redirect_uri = harvard_secrets['redirect_uri']
+    oidc_secret_id = os.environ.get("OIDC_SECRET_ID", "please define OIDC_SECRET_ID")
+    LOGGER.debug("fetching secret %s", oidc_secret_id)
+    harvard_secrets = json.loads(
+        e11_common.secretsmanager_client.get_secret_value(SecretId=oidc_secret_id)[
+            "SecretString"
+        ]
+    )
+    redirect_uri = harvard_secrets["redirect_uri"]
     if host := get_public_host(event):
         redirect_uri = f"https://{host}/auth/callback"
         LOGGER.debug("redirect_uri from public host: %s", redirect_uri)
-    config = load_openid_config(harvard_secrets['oidc_discovery_endpoint'],
-                                     client_id=harvard_secrets['client_id'],
-                                     redirect_uri=redirect_uri)
+    config = load_openid_config(
+        harvard_secrets["oidc_discovery_endpoint"],
+        client_id=harvard_secrets["client_id"],
+        redirect_uri=redirect_uri,
+    )
     result = {**config, **harvard_secrets}
     result["redirect_uri"] = redirect_uri
     return result
-
 
 
 # Helper: stateless state serializer
@@ -52,14 +56,18 @@ def _state_serializer(secret_key: str) -> URLSafeTimedSerializer:
     return URLSafeTimedSerializer(secret_key=secret_key, salt="oidc-state-v1")
 
 
-def load_openid_config(discovery_url: str, *, client_id: str, redirect_uri: str) -> dict:
+def load_openid_config(
+    discovery_url: str, *, client_id: str, redirect_uri: str
+) -> dict:
     """Fetch the contents of the discovery URL and create the openid config"""
     r = requests.get(discovery_url, timeout=10)
     r.raise_for_status()
     d = r.json()
     return {
         "issuer": d["issuer"],
-        "authorization_endpoint": d["authorization_endpoint"],  # e.g. https://login.harvard.edu/oauth2/v1/authorize
+        "authorization_endpoint": d[
+            "authorization_endpoint"
+        ],  # e.g. https://login.harvard.edu/oauth2/v1/authorize
         "token_endpoint": d["token_endpoint"],
         "jwks_uri": d["jwks_uri"],
         "client_id": client_id,
@@ -69,30 +77,41 @@ def load_openid_config(discovery_url: str, *, client_id: str, redirect_uri: str)
 
 # -------- Function #1: Build Authorization URL (stateless) --------
 # pylint: disable=too-many-locals
-def build_oidc_authorization_url_stateless( *, openid_config: dict, scope=("openid", "profile", "email"), state_ttl_seconds=600 ):
+def build_oidc_authorization_url_stateless(
+    *, openid_config: dict, scope=("openid", "profile", "email"), state_ttl_seconds=600
+):
     """
     Returns (authorization_url, issued_at_epoch) with state carrying nonce+PKCE code_verifier (signed).
     openid_config requires: authorization_endpoint, client_id, redirect_uri
     """
     auth_endpoint = openid_config["authorization_endpoint"]
-    client_id     = openid_config["client_id"]
-    redirect_uri  = openid_config["redirect_uri"]
+    client_id = openid_config["client_id"]
+    redirect_uri = openid_config["redirect_uri"]
 
-    logging.getLogger().debug("client_id=%s",client_id)
+    logging.getLogger().debug("client_id=%s", client_id)
 
     # PKCE
-    code_verifier = base64.urlsafe_b64encode(secrets.token_bytes(64)).decode().rstrip("=")
-    code_challenge = base64.urlsafe_b64encode(
-        hashlib.sha256(code_verifier.encode()).digest()
-    ).decode().rstrip("=")
+    code_verifier = (
+        base64.urlsafe_b64encode(secrets.token_bytes(64)).decode().rstrip("=")
+    )
+    code_challenge = (
+        base64.urlsafe_b64encode(hashlib.sha256(code_verifier.encode()).digest())
+        .decode()
+        .rstrip("=")
+    )
 
     # CSRF + replay
     nonce = base64.urlsafe_b64encode(secrets.token_bytes(24)).decode().rstrip("=")
     issued_at = int(time.time())
 
     # Sign the state (contains only what's needed later)
-    s = _state_serializer(openid_config['hmac_secret'])
-    state_payload = {"nonce": nonce, "cv": code_verifier, "iat": issued_at, "ttl": state_ttl_seconds}
+    s = _state_serializer(openid_config["hmac_secret"])
+    state_payload = {
+        "nonce": nonce,
+        "cv": code_verifier,
+        "iat": issued_at,
+        "ttl": state_ttl_seconds,
+    }
     state = s.dumps(state_payload)
 
     query = {
@@ -117,47 +136,50 @@ def build_oidc_authorization_url_stateless( *, openid_config: dict, scope=("open
 # pylint: disable=too-many-locals
 def handle_oidc_redirect_stateless(
     *,
-    openid_config: dict,      # must include: token_endpoint, issuer, jwks_uri, client_id, redirect_uri
-    callback_params: dict,    # API Gateway query params (GET)
-    max_state_age_seconds=600 ):
+    openid_config: dict,  # must include: token_endpoint, issuer, jwks_uri, client_id, redirect_uri
+    callback_params: dict,  # API Gateway query params (GET)
+    max_state_age_seconds=600,
+):
     """
     Verifies signed state (age-limited), exchanges code with PKCE, verifies ID token, returns claims.
     """
     # 1) Validate redirect params
     if "error" in callback_params:
-        raise RuntimeError(f"OIDC error: {callback_params.get('error')} - {callback_params.get('error_description')}")
-    code  = callback_params.get("code")
+        raise RuntimeError(
+            f"OIDC error: {callback_params.get('error')} - {callback_params.get('error_description')}"
+        )
+    code = callback_params.get("code")
     state = callback_params.get("state")
     if not code or not state:
         raise RuntimeError("Missing 'code' or 'state'.")
 
     # 2) Unpack & verify state (stateless)
-    s = _state_serializer(openid_config['hmac_secret'])
+    s = _state_serializer(openid_config["hmac_secret"])
     try:
         st = s.loads(state, max_age=max_state_age_seconds)
     except SignatureExpired as e:
-        LOGGER.info("SignatureExpired: %s",e)
+        LOGGER.info("SignatureExpired: %s", e)
         raise
     except BadSignature as e:
-        LOGGER.info("BadSignature: %s",e)
+        LOGGER.info("BadSignature: %s", e)
         raise
 
     code_verifier = st["cv"]
     expected_nonce = st["nonce"]
 
     token_endpoint = openid_config["token_endpoint"]
-    issuer         = openid_config["issuer"]
-    jwks_uri       = openid_config["jwks_uri"]
-    client_id      = openid_config["client_id"]
-    redirect_uri   = openid_config["redirect_uri"]
-    client_secret  = openid_config['secret_key']
+    issuer = openid_config["issuer"]
+    jwks_uri = openid_config["jwks_uri"]
+    client_id = openid_config["client_id"]
+    redirect_uri = openid_config["redirect_uri"]
+    client_secret = openid_config["secret_key"]
 
     # 3) Token exchange (confidential client with PKCE)
     data = {
         "grant_type": "authorization_code",
         "code": code,
         "redirect_uri": redirect_uri,
-        "client_id": client_id,          # some IdPs require it even with Basic auth
+        "client_id": client_id,  # some IdPs require it even with Basic auth
         "client_secret": client_secret,
         "code_verifier": code_verifier,  # binds the code to our request
     }
@@ -177,7 +199,17 @@ def handle_oidc_redirect_stateless(
     claims = jwt.decode(
         id_token,
         signing_key.key,
-        algorithms=["RS256", "ES256", "PS256", "RS384", "ES384", "PS384", "RS512", "ES512", "PS512"],
+        algorithms=[
+            "RS256",
+            "ES256",
+            "PS256",
+            "RS384",
+            "ES384",
+            "PS384",
+            "RS512",
+            "ES512",
+            "PS512",
+        ],
         audience=client_id,
         issuer=issuer,
         options={"require": ["exp", "iat", "iss", "aud", "sub"]},

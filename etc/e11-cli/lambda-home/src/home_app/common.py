@@ -4,17 +4,19 @@ Common includes for lambda-home.
 
 import os
 import sys
-from os.path import dirname, join, isdir
+from os.path import dirname, isdir, join
 
-from e11.e11core.constants import COURSE_DOMAIN
 from e11 import e11_common
+from e11.e11core.constants import COURSE_DOMAIN
 
 users_table = e11_common.users_table
 
-SESSION_TTL_SECS    = int(os.environ.get("SESSION_TTL_SECS", str(e11_common.SIX_MONTHS)))  # 180 days
+SESSION_TTL_SECS = int(
+    os.environ.get("SESSION_TTL_SECS", str(e11_common.SIX_MONTHS))
+)  # 180 days
 COOKIE_NAME = os.environ.get("COOKIE_NAME", "AuthSid")
 COOKIE_SECURE = True
-COOKIE_DOMAIN = os.environ.get("COOKIE_DOMAIN",COURSE_DOMAIN)
+COOKIE_DOMAIN = os.environ.get("COOKIE_DOMAIN", COURSE_DOMAIN)
 COOKIE_SAMESITE = os.environ.get("COOKIE_SAMESITE", "Lax")  # Lax|Strict|None
 
 # fix the path. Don't know why this is necessary
@@ -25,8 +27,9 @@ if isdir(join(NESTED, "e11")):
     sys.path.insert(0, NESTED)
 # path fixing done
 
-TEMPLATE_DIR = join(MY_DIR,"templates")
-STATIC_DIR = join(MY_DIR,"static")
+TEMPLATE_DIR = join(MY_DIR, "templates")
+STATIC_DIR = join(MY_DIR, "static")
+
 
 ################################################################
 ## Add to user log
@@ -37,8 +40,14 @@ def is_staging_environment(event) -> bool:
     return stage == "stage"
 
 
-def make_cookie(name:str, value: str, max_age: int = SESSION_TTL_SECS, clear: bool = False, domain = None) -> str:
-    """ create a cookie for Lambda """
+def make_cookie(
+    name: str,
+    value: str,
+    max_age: int = SESSION_TTL_SECS,
+    clear: bool = False,
+    domain=None,
+) -> str:
+    """create a cookie for Lambda"""
     parts = [f"{name}={'' if clear else value}"]
     if domain:
         parts.append(f"Domain={domain}")
@@ -53,6 +62,7 @@ def make_cookie(name:str, value: str, max_age: int = SESSION_TTL_SECS, clear: bo
     else:
         parts.append(f"Max-Age={max_age}")
     return "; ".join(parts)
+
 
 def get_cookie_domain(event) -> str:
     """Get the appropriate cookie domain based on the environment"""

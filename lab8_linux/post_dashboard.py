@@ -1,5 +1,5 @@
 """
-Python 3.13 code that posts an image to the dashboard.
+Python 3.14 code that posts an image to the dashboard.
 Taken from e11/main.py.
 """
 

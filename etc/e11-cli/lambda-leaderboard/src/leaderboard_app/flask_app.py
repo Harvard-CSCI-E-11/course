@@ -251,7 +251,7 @@ def api_post_register():
 
     try:
         user = get_user_from_email(email)
-    except EmailNotRegistered as e:
+    except EmailNotRegistered:
         abort(404, f'email address {email} is not registered')
     if not user:
         abort(404, 'invalid email')

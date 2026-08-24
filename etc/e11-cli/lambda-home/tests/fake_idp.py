@@ -1,10 +1,11 @@
 # Minimal Fake OIDC Provider (discovery, authorize, token, jwks)
-import logging
 import base64
 import hashlib
+import logging
 import threading
 import time
-from flask import Flask, request, jsonify, redirect
+
+from flask import Flask, jsonify, redirect, request
 
 
 def create_app(issuer, private_key_pem, jwk):
@@ -16,21 +17,29 @@ def create_app(issuer, private_key_pem, jwk):
 
     @app.get("/.well-known/openid-configuration")
     def discovery():
-        return jsonify({
-            "issuer": app.issuer,
-            "authorization_endpoint": f"{app.issuer}/oauth2/v1/authorize",
-            "token_endpoint": f"{app.issuer}/oauth2/v1/token",
-            "jwks_uri": f"{app.issuer}/oauth2/v1/keys",
-            "id_token_signing_alg_values_supported": ["RS256"],
-        })
+        return jsonify(
+            {
+                "issuer": app.issuer,
+                "authorization_endpoint": f"{app.issuer}/oauth2/v1/authorize",
+                "token_endpoint": f"{app.issuer}/oauth2/v1/token",
+                "jwks_uri": f"{app.issuer}/oauth2/v1/keys",
+                "id_token_signing_alg_values_supported": ["RS256"],
+            }
+        )
 
     @app.get("/oauth2/v1/authorize")
     def authorize():
         # Simulate user consent → redirect back with code & original state
         q = request.args
-        code = base64.urlsafe_b64encode(hashlib.sha256(
-            f"{q.get('client_id')}|{q.get('nonce')}|{time.time()}".encode()
-        ).digest())[:24].decode().rstrip("=")
+        code = (
+            base64.urlsafe_b64encode(
+                hashlib.sha256(
+                    f"{q.get('client_id')}|{q.get('nonce')}|{time.time()}".encode()
+                ).digest()
+            )[:24]
+            .decode()
+            .rstrip("=")
+        )
         CODES[code] = {
             "client_id": q.get("client_id"),
             "redirect_uri": q.get("redirect_uri"),
@@ -46,28 +55,41 @@ def create_app(issuer, private_key_pem, jwk):
     @app.post("/oauth2/v1/token")
     def token():
         from jwt import encode
+
         data = request.form
         code = data.get("code")
         cv = data.get("code_verifier")
-        client_id = data.get("client_id", request.authorization.username if request.authorization else None)
-        logging.getLogger().debug("data=%s client_id=%s",data,client_id)
+        client_id = data.get(
+            "client_id",
+            request.authorization.username if request.authorization else None,
+        )
+        logging.getLogger().debug("data=%s client_id=%s", data, client_id)
 
         if code not in CODES:
             return jsonify(error="invalid_grant", error_description="unknown code"), 400
         record = CODES.pop(code)
-        logging.getLogger().debug("record=%s",record)
+        logging.getLogger().debug("record=%s", record)
 
         # Verify client_id matches the one that initiated auth (basic check)
         if client_id != record["client_id"]:
-            return jsonify(error="invalid_client", error_description=f"client_id mismatch received={client_id} expected={record['client_id']} record={record}"), 401
+            return jsonify(
+                error="invalid_client",
+                error_description=f"client_id mismatch received={client_id} expected={record['client_id']} record={record}",
+            ), 401
 
         # Verify PKCE
         if record["method"] == "S256":
-            expected = base64.urlsafe_b64encode(hashlib.sha256(cv.encode()).digest()).decode().rstrip("=")
+            expected = (
+                base64.urlsafe_b64encode(hashlib.sha256(cv.encode()).digest())
+                .decode()
+                .rstrip("=")
+            )
         else:
             expected = cv
         if expected != record["code_challenge"]:
-            return jsonify(error="invalid_grant", error_description="pkce verification failed"), 400
+            return jsonify(
+                error="invalid_grant", error_description="pkce verification failed"
+            ), 400
 
         now = int(time.time())
         claims = {
@@ -83,14 +105,21 @@ def create_app(issuer, private_key_pem, jwk):
             "given_name": "Alice",
             "family_name": "Example",
         }
-        id_token = encode(claims, private_key_pem, algorithm="RS256", headers={"typ": "JWT", "alg": "RS256", "kid": jwk["kid"]})
-        return jsonify({
-            "access_token": "fake-access",
-            "token_type": "Bearer",
-            "expires_in": 3600,
-            "id_token": id_token,
-            "scope": record["scope"],
-        })
+        id_token = encode(
+            claims,
+            private_key_pem,
+            algorithm="RS256",
+            headers={"typ": "JWT", "alg": "RS256", "kid": jwk["kid"]},
+        )
+        return jsonify(
+            {
+                "access_token": "fake-access",
+                "token_type": "Bearer",
+                "expires_in": 3600,
+                "id_token": id_token,
+                "scope": record["scope"],
+            }
+        )
 
     @app.get("/oauth2/v1/keys")
     def keys():
@@ -98,13 +127,17 @@ def create_app(issuer, private_key_pem, jwk):
 
     return app
 
+
 class ServerThread(threading.Thread):
     def __init__(self, app, host="127.0.0.1", port=0):
         super().__init__(daemon=True)
         from werkzeug.serving import make_server
+
         self.srv = make_server(host, port, app)
         self.port = self.srv.server_port
+
     def run(self):
         self.srv.serve_forever()
+
     def stop(self):
         self.srv.shutdown()

@@ -15,14 +15,12 @@ export PORT=8004
 PYTHON=.venv/bin/python3
 
 $(PYTHON):
-	poetry config virtualenvs.in-project true
-	poetry install		# includes flask in pyproject.toml
+	uv sync --locked
 	npm install
 
 #
 # Install the lab4.services file
 install-lab4-service: $(PYTHON)
-	poetry install
 	sudo install lab4.service /etc/systemd/system/
 	sudo systemctl daemon-reload
 	sudo systemctl enable lab4
@@ -36,29 +34,29 @@ install-lab4-nginx:
 # Run the application locally for testing
 # Note: your local machine must be authorized for your AWS account with the `aws` command.
 local-app: $(PYTHON)
-	poetry run flask  --app server.main:app run --debug --port 8004 --reload
+	uv run --locked flask --app server.main:app run --debug --port 8004 --reload
 
 # Print help for the application
 help: $(PYTHON)
-	poetry run flask  --app server.main:app --help
+	uv run --locked flask --app server.main:app --help
 
 # Create a new database
 init-db: $(PYTHON)
-	poetry run flask  --app server.main:app init-db
+	uv run --locked flask --app server.main:app init-db
 
 # Wipe the database and start over
 wipe-db: $(PYTHON)
-	poetry run flask  --app server.main:app wipe-db
+	uv run --locked flask --app server.main:app wipe-db
 	make init-db
 
 # Generate a new api-key
-# Note the '@' so that the `poetry run flask...` is not included in the output
+# Note the '@' so that the `uv run flask...` command is not included in the output
 new-apikey: $(PYTHON)
-	@poetry run flask  --app server.main:app new-apikey
+	@uv run --locked flask --app server.main:app new-apikey
 
 # Dump the database
 dump-db: $(PYTHON)
-	poetry run flask  --app server.main:app dump-db
+	uv run --locked flask --app server.main:app dump-db
 
 # dump the listing for an AI
 dump-listing:
@@ -77,8 +75,8 @@ dump-listing:
 # Software engineering targets
 
 lint: $(PYTHON)
-	poetry run pylint server
-	poetry run djlint --profile=jinja --reformat server/templates/*html
+	uv run --locked pylint server
+	uv run --locked djlint --profile=jinja --reformat server/templates/*html
 	npx eslint -c tools/eslint.config.mjs server/static
 
 

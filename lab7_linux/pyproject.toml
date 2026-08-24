@@ -1,29 +1,22 @@
 [project]
-name = "lab7"
+name = "lab7-linux"
 version = "1.0.0"
-description = "Lab 7 Code for Linux Client"
+description = "Lab 7 code for the Linux client"
 authors = [
-    {name = "Simson Garfinkel",email = "simsong@acm.org"}
+    { name = "Simson Garfinkel", email = "simsong@acm.org" },
 ]
-readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14,<3.15"
 dependencies = [
-             "requests (>=2.32.5,<3.0.0)",
-             "tabulate (>=0.9.0,<0.10.0)"
+    "requests",
+    "tabulate",
 ]
 
-[tool.poetry]
-package-mode = false
+[dependency-groups]
+dev = [
+    "circuitpython-stubs",
+    "pylint",
+    "pyright",
+]
 
-[tool.pylint.basic]
-
-[tool.poetry.group.dev.dependencies]
-pylint = "^3.3.8"
-pyright = "^1.1.407"
-circuitpython-stubs = "^10.0.3"
-
-[tool.pylint.main]
-
-[build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
+[tool.uv]
+package = false

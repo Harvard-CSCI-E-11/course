@@ -1,46 +1,36 @@
 [project]
-name = "lab8"
+name = "lab8-linux"
 version = "1.0.0"
-description = "Lab 8 Linux Client to post to dashboard"
+description = "Lab 8 Linux client to post to the dashboard"
 authors = [
-    {name = "Simson Garfinkel",email = "simsong@acm.org"}
+    { name = "Simson Garfinkel", email = "simsong@acm.org" },
 ]
-readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14,<3.15"
 dependencies = [
-    "circuitpython-stubs (>=10.0.3,<11.0.0)",
-    "adafruit-circuitpython-neopixel (>=6.3.18,<7.0.0)",
-    "requests (>=2.32.5,<3.0.0)"
+    "adafruit-circuitpython-neopixel",
+    "circuitpython-stubs",
+    "requests",
 ]
 
-[tool.poetry]
-package-mode = false
+[dependency-groups]
+dev = [
+    "djlint",
+    "pylint",
+    "pyright",
+]
 
-[tool.poetry.group.dev.dependencies]
-djlint = "^1.36.4"
-pyright = "^1.1.407"
-circuitpython-stubs = "^10.0.3"
-pylint = "^4.0.4"
+[tool.uv]
+package = false
 
 [tool.pylint.main]
 ignored-modules = [
     "wifi",
     "socketpool",
     "adafruit_requests",
-    "adafruit_pycamera"
+    "adafruit_pycamera",
 ]
 
-
-[build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
-
 [tool.pyright]
-# keep type checking on, but don't freak out about CP-only modules
 typeCheckingMode = "standard"
-
-# "wifi" and "socketpool" are stub-only modules -> suppress the missing-source warning
 reportMissingModuleSource = "none"
-
-# If you just want to shut up missing imports entirely (simplest for labs):
 reportMissingImports = "none"

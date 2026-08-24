@@ -1,31 +1,31 @@
 [project]
-name = "lab6"
+name = "lab7-memento"
 version = "1.0.0"
-description = "Lab 7 Circuit Python and ESP32 tools"
+description = "Lab 7 CircuitPython and ESP32 tools"
 authors = [
-    {name = "Simson Garfinkel",email = "simsong@acm.org"}
+    { name = "Simson Garfinkel", email = "simsong@acm.org" },
 ]
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14,<3.15"
 dependencies = [
-             "circup",
-             "adafruit-ampy",
-             "pylint",
-             "adafruit-blinka",
-             "circuitpython-stubs (>=10.0.3,<11.0.0)"
+    "adafruit-ampy",
+    "adafruit-blinka",
+    "circup",
+    "circuitpython-stubs",
+    "pylint",
 ]
 
-[tool.poetry]
-package-mode = false
+[dependency-groups]
+dev = [
+    "adafruit-circuitpython-pycamera",
+    "pyright",
+]
+
+[tool.uv]
+package = false
 
 [tool.pylint.basic]
 good-names = ["VELOCITY_X", "VELOCITY_Y", "speaker"]
-
-[tool.poetry.group.dev.dependencies]
-pylint = "^3.3.8"
-pyright = "^1.1.407"
-circuitpython-stubs = "^10.0.3"
-adafruit-circuitpython-pycamera = "^1.5.3"
 
 [tool.pylint.main]
 ignored-modules = [
@@ -40,12 +40,7 @@ ignored-modules = [
 ]
 
 [tool.pyright]
-# Identify the environment
 venvPath = "."
 venv = ".venv"
 reportMissingModuleSource = false
 reportMissingImports = "warning"
-
-[build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"

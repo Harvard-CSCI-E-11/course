@@ -78,7 +78,7 @@ When the `E11_STAFF` environment variable is set, additional staff-only commands
 
 **Staff commands require AWS credentials:**
 ```bash
-E11_STAFF=1 AWS_REGION=us-east-1 AWS_PROFILE=e11-staff poetry run e11 <command>
+E11_STAFF=1 AWS_REGION=us-east-1 AWS_PROFILE=e11-staff uv run --locked e11 <command>
 ```
 
 Available staff commands:
@@ -106,12 +106,12 @@ AWS_REGION=us-east-2 AWS_PROFILE=e11-staff aws sso login
 2. Navigate to the e11-cli directory and install dependencies:
 ```bash
 cd etc/e11-cli
-poetry install
+uv sync --locked
 ```
 
 3. Run e11admin with the required environment variables:
 ```bash
-E11_STAFF=1 AWS_REGION=us-east-1 AWS_PROFILE=e11-staff poetry run e11admin
+E11_STAFF=1 AWS_REGION=us-east-1 AWS_PROFILE=e11-staff uv run --locked e11admin
 ```
 
 | Variable | Description |
@@ -124,7 +124,7 @@ E11_STAFF=1 AWS_REGION=us-east-1 AWS_PROFILE=e11-staff poetry run e11admin
 - The `e11-staff` AWS profile must be configured in `~/.aws/config` for SSO access
 - SSO login uses `us-east-2`, but DynamoDB operations use `us-east-1`
 - Running `e11admin` without arguments displays all registered users and DynamoDB tables
-- Python 3.12-3.13 required (3.14 not supported)
+- Python 3.14 is required.
 
 Student selectors:
 * `--email <email>` - Select a student by email where the command supports a student selector
@@ -213,16 +213,16 @@ e11 access check              # Check if SSH access is enabled
 For detailed architecture documentation, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Prerequisites
-* Python 3.12+ (CLI) / Python 3.13 (Lambda)
-* Poetry (dependency management)
+* Python 3.14 (CLI and Lambdas)
+* uv (Python, dependency, environment, and package management)
 * AWS SAM CLI (for Lambda deployment)
 
 ## Setting Up Development Environment
 
 ```bash
 cd etc/e11-cli
-poetry install --with dev
-poetry run e11 --help
+uv sync --locked
+uv run --locked e11 --help
 ```
 
 ## Building and Testing
@@ -246,7 +246,7 @@ make check-all
 
 After modifying `e11/` or `e11core/`:
 ```bash
-poetry build
+uv build --wheel
 cd lambda-home && make vend-e11
 cd ../lambda-leaderboard && make vend-e11
 ```
@@ -260,13 +260,13 @@ make stop_local_dynamodb      # Stop DynamoDB Local
 
 # How it Works
 
-This program can be found on [GitHub in the spring26 repo](https://github.com/Harvard-CSCI-E-11/spring26/tree/main/etc/e11-cli). The repo is checked out by the student and then installed in `$HOME/.local/bin` using `pipx` by the [install-e11](https://github.com/Harvard-CSCI-E-11/spring26/blob/main/etc/install-e11) installation script.
+This program can be found on [GitHub in the spring26 repo](https://github.com/Harvard-CSCI-E-11/spring26/tree/main/etc/e11-cli). The repo is checked out by the student and then installed as a uv tool in `$HOME/.local/bin` by the [install-e11](https://github.com/Harvard-CSCI-E-11/spring26/blob/main/etc/install-e11) installation script.
 
 ## Running from this repo
 
 ```bash
-poetry sync
-poetry run e11
+uv sync --locked
+uv run --locked e11
 ```
 
 ## Package Entry Points

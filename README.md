@@ -4,6 +4,38 @@
 
 This is the CSCI E-11 git repo for the Spring of 2026. It contains sample code, templates, and the text of the labs themselves.
 
+## Repository layout
+
+The repository combines student-facing lab material with the staff software that
+supports the course:
+
+- `lab1/` through `lab6/` contain the sequential Linux/AWS assignments and
+  their starter code. Each lab that uses Python has its own `pyproject.toml`,
+  lockfile, virtual environment, and `Makefile` interface.
+- `lab7_linux/` and `lab8_linux/` contain Linux versions of the edge-device
+  clients. `lab7_memento/` and `lab8_memento/` contain the corresponding
+  CircuitPython/MEMENTO programs and host-side tools. `lab8/` is the destination
+  students populate from the earlier server labs.
+- `lab_common/` owns the web application files shared by labs 4--6. Those lab
+  directories use relative symbolic links to the common files and to files from
+  preceding labs so that the progression is visible without maintaining copied
+  implementations.
+- `etc/e11-cli/` is the Python package that provides the student `e11` command
+  and the staff `e11admin` command. Its `lambda-home/`, `lambda-leaderboard/`,
+  and `lambda-users-db/` subdirectories contain the serverless course services.
+  `etc/install-e11` installs the student workstation tooling.
+- `doc/` contains course-maintenance notes and lab-document sources; `staff/`
+  contains staff-only utilities; and `tests/` contains tests for root-level
+  utilities.
+- The root `Makefile` coordinates checks across the independent subprojects.
+  The repository root intentionally has no Python project or virtual
+  environment of its own.
+
+Generated directories such as `.venv/`, `node_modules/`, `.aws-sam/`, coverage
+output, and local configuration files are intentionally not part of the source
+layout. Run each project's documented `make` target from that project's
+directory; do not assume that a virtual environment from another lab applies.
+
 You will find the lab writeups on our [Google Drive](https://drive.google.com/drive/folders/1BexB_lGIw93CP4c6JPEMELY2m6h_qdvr).
 
 Currently these labs require that you have a [Harvard Key](https://key.harvard.edu/) account. By January 2026, you will also be able to use them with a Google Account.
@@ -57,7 +89,7 @@ This course assumes that you have had some introduction to the Python programmin
 
 We will make use of the following Python technologies. Please follow the links for documentation if you are unsur:
 * [Python virtual environments](https://docs.python.org/3/library/venv.html) (e.g. venv)
-* [Poetry](https://python-poetry.org/) to manage python virtual environments and packaging
+* [uv](https://docs.astral.sh/uv/) to manage Python versions, virtual environments, dependencies, and packaging
 
 
 # Amazon Web Services (AWS) quick-start
@@ -68,7 +100,7 @@ This course does not assume that you know how to use Amazon Web Services, but it
   * You should create an [EC2 instance type](https://aws.amazon.com/ec2/instance-types/) that qualifies for the AWS "free tier."
   * You will get a warning at the end of each month that you have nearly used up your 750 hours of free tier usage for the month.
   * As there are only 744 hours in months with 31 days, this will not result in a charge unless you have created additional instances, or if your instance is not at the free tier.
-* You will be using Ubuntu Linux 24.04 LTS from the command line.
+* You will be using Ubuntu Linux 26.04 LTS and Python 3.14 from the command line.
 * You will edit files with either the emacs, vi or nano editors.
 
 AWS Permissions:

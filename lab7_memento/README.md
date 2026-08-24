@@ -57,7 +57,7 @@ drwx------  1 simsong  staff   512 Jan  1  2000 sd
 
 Use the `circup` command to install software:
 ```
-simsong@Seasons-2 lab8 % poetry run circup --help
+simsong@Seasons-2 lab8 % uv run --locked circup --help
 Usage: circup [OPTIONS] COMMAND [ARGS]...
 
   A tool to manage and update libraries on a CircuitPython device.
@@ -108,8 +108,8 @@ Commands:
 Install what you need with:
 
 ```
-% poetry install
-% poetry run circup install $(cat requirements_circuit.txt)
+% uv sync --locked
+% uv run --locked circup install $(cat requirements_circuit.txt)
 ```
 
 In the `demos/` directory you will find several self-contained circuit python files that you can copy and paste into the Thonny editor and save on to your MEMENTO. You can also send them to the MEMENTO using the `ampy` command line program. Remember - when the computer starts up, it runs the python program called `code.py`.

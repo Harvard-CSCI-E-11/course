@@ -9,6 +9,7 @@
 .aws-sam
 .aws_sam
 .venv
+**/e11.whl
 __pycache__
 coverage.xml
 csci-e-11-config.toml

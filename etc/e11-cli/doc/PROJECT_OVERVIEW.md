@@ -49,7 +49,7 @@ e11-cli/
 │   └── tests/                    # Lambda-home test suite
 ├── lambda-users-db/              # SAM template for DynamoDB table creation
 ├── tests/                        # E11 CLI test suite
-├── pyproject.toml                # Poetry configuration
+├── pyproject.toml                # uv project and package configuration
 ├── Makefile                      # Build and test automation
 ├── README.md                     # User-facing documentation
 ├── TESTING.md                    # Testing documentation
@@ -232,7 +232,7 @@ Located at `/home/ubuntu/e11-config.ini`, contains:
 ## Dependencies
 
 ### E11 CLI Core
-- Python 3.12+
+- Python 3.14
 - boto3 - AWS SDK
 - paramiko - SSH client
 - requests - HTTP client
@@ -244,7 +244,7 @@ Located at `/home/ubuntu/e11-config.ini`, contains:
 - crossplane - Nginx config parsing
 
 ### Lambda-Home
-- Python 3.13 (Lambda runtime)
+- Python 3.14 (Lambda runtime)
 - All E11 CLI dependencies
 - Additional AWS service integrations (DynamoDB, SES, Route53, Secrets Manager)
 

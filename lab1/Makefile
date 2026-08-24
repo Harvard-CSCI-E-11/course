@@ -16,8 +16,7 @@ export LAB=lab1
 PYTHON=.venv/bin/python3
 
 $(PYTHON):
-	poetry config virtualenvs.in-project true
-	poetry install		# installs the current poetry.lock, do not update
+	uv sync --locked
 
 lint: $(PYTHON)
 	@echo nothing to lint here
