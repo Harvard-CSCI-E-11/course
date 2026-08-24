@@ -151,6 +151,8 @@
 
 ### Lambda requirements cleanup
 
+- Enabled all GitHub Actions checks on the repository's `update-grade`
+  default branch.
 - Changed the leaderboard Lambda's generated manifest from
   `src/requirements.txt` to `src/leaderboard_app/requirements.txt` and updated
   the SAM build metadata to consume it from that location.

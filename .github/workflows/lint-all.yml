@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - dev
+      - update-grade
   pull_request:
 
 # Cancel in-progress runs when a new run is triggered
