@@ -46,8 +46,8 @@
 - Added `**/e11.whl` to the repository ignore rules. No vendored e11 wheel is
   tracked; build and SAM cache copies remain reproducible local artifacts.
 - Changed both SAM templates to the `python3.14` runtime and build method.
-- Updated GitHub Actions to provision Python 3.14 and uv 0.12.5, with uv caching
-  enabled.
+- Updated GitHub Actions to provision Python 3.14 and uv 0.12.5 using
+  `astral-sh/setup-uv@v10.0.1`, with uv caching enabled.
 - Updated the Ubuntu installer for Ubuntu 26.04, Python 3.14, and the official
   uv installer.
 
