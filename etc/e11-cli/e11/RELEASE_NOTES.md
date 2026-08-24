@@ -131,3 +131,19 @@
 - Removed the leaderboard template's invalid empty ACM ARN default. Deployment
   configuration continues to pass an empty parameter explicitly when the stack
   should create its certificate.
+
+### Stable student checkout documentation
+
+- Updated student-facing documentation for Spring 2027 and instructed students
+  to clone the annual `spring27` repository into the stable `$HOME/course`
+  checkout directory.
+- Updated Lab commands, shell prompts, and supporting documentation to use
+  `$HOME/course`, `~/course`, or `/home/ubuntu/course` as appropriate.
+- Updated annual repository URLs to `spring27`, repaired the root CI badge and
+  clone URL, and corrected stale leaderboard, Lab 3, and MEMENTO source links.
+- Replaced stale Amazon Linux `/home/ec2-user` examples with Ubuntu's
+  `/home/ubuntu` path and corrected the imported Lab 1 Poetry description to
+  describe uv.
+- This documentation change anticipates the installer, runtime, service, and
+  test migrations tracked by issues #56--#62; those implementations must land
+  before the new checkout instructions are operationally complete.

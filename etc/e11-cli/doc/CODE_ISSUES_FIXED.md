@@ -88,7 +88,7 @@ While scanning the codebase, several areas were noted that could benefit from re
    - `utils.py` and `constants.py` could be merged into `common.py`
 
 2. **Parameterization**:
-   - Not all uses of 'spring26' are fully parameterized (noted in constants.py)
+   - Not all annual course-release paths are fully parameterized (noted in constants.py)
 
 These are documented but not fixed as they require architectural decisions and broader impact analysis.
 

@@ -1,6 +1,6 @@
 # **![][image1]**
 
-# **CSCI E-11: Artificial Intelligence, the Internet-of-Things, and Cybersecurity** **Harvard Extension School** **Spring 2026**
+# **CSCI E-11: Artificial Intelligence, the Internet-of-Things, and Cybersecurity** **Harvard Extension School** **Spring 2027**
 
 # **Lab \#7: Calling your API from a microcontroller**
 
@@ -541,7 +541,7 @@ Remember:
 
 Here is a fun program to try on your MEMENTO:
 
-	[code\_bounce.py](https://github.com/Harvard-CSCI-E-11/spring26/blob/main/lab7_memento/code_bounce.py)
+	[code\_bounce.py](https://github.com/Harvard-CSCI-E-11/spring27/blob/main/lab7_memento/code_bounce.py)
 
 Just paste it into code.py, save it and hit the run button in Thonny. If that doesn’t work, reset the board (sometimes this is needed). To exit the program, click the ![][image22] (STOP) button in Thonny or click the shutter button (the button with the ✌(OKAY) along the edge).
 
@@ -562,7 +562,7 @@ Circuit python reads this file when it starts up and assigns each to an environm
 
 Now, load this program into code.py:
 
-	[code\_leaderboard\_client.py](https://github.com/Harvard-CSCI-E-11/spring26/blob/main/lab7_memento/code_leaderboard_client.py)
+	[code\_leaderboard\_client.py](https://github.com/Harvard-CSCI-E-11/spring27/blob/main/lab7_memento/code_leaderboard_client.py)
 
 Run it\! You can monitor the leaderboard at [https://leaderboard.csci-e-11.org/](https://leaderboard.csci-e-11.org/) .
 
@@ -570,7 +570,7 @@ You will get email with your grade when your MEMENTO successfully registers itse
 
 If you didn’t purchase an MEMENTO or another a computer that can run Circuit Python, fear not\! There is a python client that you can run on a Mac or Windows or Linux computer. Just download it and run it:
 
-	[linux\_client.py](https://github.com/Harvard-CSCI-E-11/spring26/blob/main/lab7_linux/linux_client.py)
+	[linux\_client.py](https://github.com/Harvard-CSCI-E-11/spring27/blob/main/lab7_linux/linux_client.py)
 
 Here are some web pages we found particularly helpful:
 
@@ -591,7 +591,7 @@ Lambda is a system that automatically spins up an instance the moment it is need
 
 The leaderboard uses Amazon’s DynamoDB as its database. DynamoDB is a “document” database that stores JSON objects. It works with Lambda. Although we could have used an SQL database, Amazon’s serverless database offerings start at around $50/month, whereas DynamoDB is free for many uses.
 
-You can find the code that we are using here: [https://github.com/Harvard-CSCI-E-11/spring26/tree/main/staff/leaderboard](https://github.com/Harvard-CSCI-E-11/spring26/tree/main/staff/leaderboard)
+You can find the code in the [leaderboard Lambda application](../etc/e11-cli/lambda-leaderboard/).
 
 When you go to the leaderboard, a JavaScript client that implements our API will run in your browser and register itself. You can view the source code for that client [here](https://github.com/Harvard-CSCI-E-11/spring25/blob/main/staff/leaderboard/leaderboard_app/templates/leaderboard.html) (the JavaScript is embedded in the HTML file).
 
@@ -603,7 +603,7 @@ It turns out that you can put arbitrary messages on the dashboard. Figure out ho
 
 We’ve given you a few programs that you can run on your ESP-32:
 
-[https://github.com/Harvard-CSCI-E-11/spring26/tree/main/lab7\_memento/demos](https://github.com/Harvard-CSCI-E-11/spring26/tree/main/lab7_memento/demos)
+[https://github.com/Harvard-CSCI-E-11/spring27/tree/main/lab7\_memento/demos](https://github.com/Harvard-CSCI-E-11/spring27/tree/main/lab7_memento/demos)
 
 Our leaderboard client uses the `adafruit_connection_manager`.  To use our leaderboard client(below), you will need to install the connection manager first.
 
@@ -617,7 +617,7 @@ You can learn more about it here:
 
 The leaderboard client is here:
 
-	[https://github.com/Harvard-CSCI-E-11/spring26/blob/main/lab7\_linux/linux\_client.py](https://github.com/Harvard-CSCI-E-11/spring26/blob/main/lab7_linux/linux_client.py)
+	[https://github.com/Harvard-CSCI-E-11/spring27/blob/main/lab7\_linux/linux\_client.py](https://github.com/Harvard-CSCI-E-11/spring27/blob/main/lab7_linux/linux_client.py)
 
 If you do not install the connections manager, you will see an error message like this:
 

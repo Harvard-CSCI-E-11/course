@@ -2,7 +2,7 @@
 | :---------------------------- | ------------------------------------------------------------ |
 | Course Name                   | Artificial Intelligence, Internet of Things, and Cybersecurity |
 | Course Number                 | CSCI E-11                                                    |
-| Semester                      | Spring 2026                                                  |
+| Semester                      | Spring 2027                                                  |
 | Instructors                   | Geoff Cohen & Simson Garfinkel                               |
 | Courseware Security Architect | Simson Garfinkel                                             |
 
@@ -26,7 +26,7 @@ System Elements
 
 The CSCI E-11 courseware consists of:
 
-* The https://github.com/Harvard-CSCI-E-11/spring26 github repo which stores all software and configuration information.
+* The https://github.com/Harvard-CSCI-E-11/spring27 github repo which stores all software and configuration information.
 
 * The `e11` Python module which is installed as the `e11` command on the student's instance using the `pipx` command.
 
@@ -64,7 +64,7 @@ Because all access to sensitive data is moderated through python functions runni
 
 * All unit tests are run automatically on GitHub using GitHub actions on every commit.
 
-* Code coverage is tracked using `pytest-cov` and reported at the end of each test. Results are archived at https://app.codecov.io/github/Harvard-CSCI-E-11/spring26.
+* Code coverage is tracked using `pytest-cov` and reported at the end of each test. Results are archived at https://app.codecov.io/github/Harvard-CSCI-E-11/spring27.
 
 ### Secrets
 All secrets are stored in AWS Secrets Manager, including:
@@ -111,7 +111,7 @@ Mitigations:
 
 Grading
 -------
-Student instances are "graded" by software that runs on Lambda that logs into the student instance and checks various configuration details. The grading functions can be viewed at https://github.com/Harvard-CSCI-E-11/spring26/tree/main/etc/e11-cli/e11/lab_tests
+Student instances are "graded" by software that runs on Lambda that logs into the student instance and checks various configuration details. The grading functions can be viewed at https://github.com/Harvard-CSCI-E-11/spring27/tree/main/etc/e11-cli/e11/lab_tests
 
 When the grader runs, the results are stored in the table `e11-users` with a primary key of the `user_id` and a sort key of `grade#{timestamp}`.
 

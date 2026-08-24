@@ -3,7 +3,7 @@
 To run this lab, log into your EC2 instance and cd to the lab directory:
 
 ```
-cd /home/ec2-user/spring26/lab6
+cd /home/ubuntu/course/lab6
 ```
 
 Then do these steps:

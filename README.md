@@ -1,8 +1,8 @@
 # CSCI E-11 git repo
-[![CI (pip)](https://github.com/Harvard-CSCI-E-11/spring26/actions/workflows/ci-e11.yml/badge.svg)]([https://github.com/Plant-Tracer/webapp/actions/workflows/continuous-integration-pip.yml](https://github.com/Harvard-CSCI-E-11/spring26/actions/workflows/ci.yml))
-[![codecov](https://codecov.io/github/Harvard-CSCI-E-11/spring26/graph/badge.svg?token=GI7Z8W3YC5)](https://codecov.io/github/Harvard-CSCI-E-11/spring26)
+[![CI](https://github.com/Harvard-CSCI-E-11/spring27/actions/workflows/ci-e11.yml/badge.svg)](https://github.com/Harvard-CSCI-E-11/spring27/actions/workflows/ci-e11.yml)
+[![codecov](https://codecov.io/github/Harvard-CSCI-E-11/spring27/graph/badge.svg?token=GI7Z8W3YC5)](https://codecov.io/github/Harvard-CSCI-E-11/spring27)
 
-This is the CSCI E-11 git repo for the Spring of 2026. It contains sample code, templates, and the text of the labs themselves.
+This is the CSCI E-11 git repo for Spring 2027. It contains sample code, templates, and the text of the labs themselves.
 
 ## Repository layout
 
@@ -43,8 +43,8 @@ Currently these labs require that you have a [Harvard Key](https://key.harvard.e
 To use this repo, log into your AWS instance and type these commands at the `$` prompt (you do not type the prompt below):
 ```
 $ sudo apt install git
-$ git clone https://Harvard-CSCI-E-11/spring26.git
-$ spring26/etc/install-e11
+$ git clone https://github.com/Harvard-CSCI-E-11/spring27.git "$HOME/course"
+$ "$HOME/course/etc/install-e11"
 ```
 
 The student labs are identified:

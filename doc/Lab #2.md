@@ -1,6 +1,6 @@
 # **![][image1]**
 
-# **CSCI E-11: Artificial Intelligence, the Internet-of-Things, and Cybersecurity** **Harvard Extension School** **Spring 2026**
+# **CSCI E-11: Artificial Intelligence, the Internet-of-Things, and Cybersecurity** **Harvard Extension School** **Spring 2027**
 
 # **Lab \#2 \- Public & Confidential — A web server with password-based access control**
 
@@ -316,8 +316,8 @@ By default, the `/var/www/html` directory is owned by `root` — that is, the su
 
 We have also given you two files that you can use as a starter point. You can install them with:
 
-`$ cp $HOME/spring26/lab2/public.html /var/www/html/`
-`$ cp $HOME/spring26/lab2/confidential/confidential.html /var/www/html/confidential/`
+`$ cp $HOME/course/lab2/public.html /var/www/html/`
+`$ cp $HOME/course/lab2/confidential/confidential.html /var/www/html/confidential/`
 
 These `cp` commands will fail if you have not changed the ownership of the directory with the chown command above\!
 
@@ -363,7 +363,7 @@ Here’s how you will do it:
                     **`auth_basic_user_file /home/web-passwords;`**
            **`}`**
 
-   You will find the lines to add in the file `spring26/lab2/lab2-nginx-patch`.
+   You will find the lines to add in the file `course/lab2/lab2-nginx-patch`.
 
    ***Be sure to put it in the correct section inside the*** `server {` ***section—the one that contains the*** `server_name` ***directive with your smashed email domain and the*** `listen 443` ***ssl directive.***
 

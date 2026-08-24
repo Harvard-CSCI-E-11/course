@@ -1,6 +1,6 @@
 # **![][image1]**
 
-# **CSCI E-11: Artificial Intelligence, the Internet-of-Things, and Cybersecurity** **Harvard Extension School** **Spring 2026**
+# **CSCI E-11: Artificial Intelligence, the Internet-of-Things, and Cybersecurity** **Harvard Extension School** **Spring 2027**
 
 # **Lab \#3 \- Lookup Grades — A simple database-driven web app written in python**
 
@@ -76,7 +76,7 @@ This assignment builds on the instance created in Lab 1 and 2\. If you stopped i
 
 In Lab 2 we created a TLS certificate for *smashedemail.csci-e-11.org* and added support for that certificate to the nginx web server.
 
-Lab 3 builds upon Lab 2, but you will find new files in the [lab3 folder of the git repo](https://github.com/Harvard-CSCI-E-11/spring26/tree/main/lab3/):
+Lab 3 builds upon Lab 2, but you will find new files in the [lab3 folder of the git repo](https://github.com/Harvard-CSCI-E-11/spring27/tree/main/lab3/):
 
 	lab3/Makefile — a Makefile with new targets
 
@@ -156,7 +156,7 @@ That’s because the original certificate was just fo*r [https://smashedemail.cs
 
 The first thing you need to do now is to extend the certificate to include the new domain name. Then you need to extend the web server.
 
-You will find some files to help you get started installed at /home/ubuntu/spring26/lab3/.
+You will find some files to help you get started installed at /home/ubuntu/course/lab3/.
 
 ## **Expanding your certificate** {#expanding-your-certificate}
 
@@ -344,7 +344,7 @@ The e11 installer install-e11 installed poetry and configured it so that python 
 
 The Poetry projects for this class are all set up, but you do need to activate the environments. To get started with lab 3, type these commands. (At the end of the second and third lines are comments, introduced by the comment character \#. These are present for your benefit; you do not need to type them.)
 
-$ **cd \~/spring26/lab3**
+$ **cd \~/course/lab3**
 $ **poetry install**		   \# install the dependencies
 $ **source .venv/bin/activate** \# activate the virtual environment, setting PATH and prompt
 
@@ -478,9 +478,9 @@ After=network.target
 \[Service\]
 User=ubuntu
 Group=ubuntu
-WorkingDirectory=/home/ubuntu/spring26/lab3
-Environment="PATH=/home/ubuntu/spring26/lab3/.venv/bin"
-ExecStart=/home/ubuntu/spring26/lab3/.venv/bin/gunicorn \-w 2 \-b 127.0.0.1:8003 \--reload simple\_flask\_application:app
+WorkingDirectory=/home/ubuntu/course/lab3
+Environment="PATH=/home/ubuntu/course/lab3/.venv/bin"
+ExecStart=/home/ubuntu/course/lab3/.venv/bin/gunicorn \-w 2 \-b 127.0.0.1:8003 \--reload simple\_flask\_application:app
 Restart=always
 RestartSec=1
 
@@ -496,7 +496,7 @@ Once installed, this service will:
 
 Install and run the service with these commands:
 
-$ **sudo cp \~/spring26/lab3/lab3.service-simple\_flask\_application /etc/systemd/system/lab3.service**
+$ **sudo cp \~/course/lab3/lab3.service-simple\_flask\_application /etc/systemd/system/lab3.service**
 $ **sudo systemctl daemon-reload**
 $ **sudo systemctl start lab3.service**    \# start now
 
@@ -684,7 +684,7 @@ The server is vulnerable to an SQL injection attack because it does not use prep
 
 Make sure you are in the correct directory by executing:
 
-$ **cd \~/spring26/lab3**
+$ **cd \~/course/lab3**
 
 Then, activate the poetry environment:
 
@@ -692,15 +692,15 @@ Then, activate the poetry environment:
 
 ## **Creating the student database** {#creating-the-student-database}
 
-We’ve given you a program called [student\_data.py](https://github.com/Harvard-CSCI-E-11/spring26/blob/main/lab3/student_data.py) that creates a database of fake student data using the [Faker](https://pypi.org/project/Faker/) python package and returns a connection to the open database. You can run this program using to see the fake data:
+We’ve given you a program called [student\_data.py](https://github.com/Harvard-CSCI-E-11/spring27/blob/main/lab3/student_data.py) that creates a database of fake student data using the [Faker](https://pypi.org/project/Faker/) python package and returns a connection to the open database. You can run this program using to see the fake data:
 
-(lab3-py3.14) ubuntu@smashedmeail:\~/spring26/lab3$ **python student\_data.py**
+(lab3-py3.14) ubuntu@smashedmeail:\~/course/lab3$ **python student\_data.py**
 
 The data is stored in a local SQLite3 database called students.db:
 
-ubuntu@smashedemail:\~/spring26/lab3$ **ls \-l students.db**
+ubuntu@smashedemail:\~/course/lab3$ **ls \-l students.db**
 \-rw-r--r-- 1 ubuntu ubuntu 16384 Aug 15 23:22 students.db
-ubuntu@smashedemail:\~/spring26/lab3$
+ubuntu@smashedemail:\~/course/lab3$
 
 Test to make sure you created some records; our results are shown below in blue:
 
@@ -722,11 +722,11 @@ Write down a few of the student ID numbers. You will need them in the next step.
 
 ## **Installing the vulnerable app** {#installing-the-vulnerable-app}
 
-The vulnerable app is stored in the file /home/ubuntu/spring26/lab3/student\_server.py.
+The vulnerable app is stored in the file /home/ubuntu/course/lab3/student\_server.py.
 
 First, we need to change the lab3.service file so that gunicorn will run the file student\_server.py instead of simple\_flask\_application.py:
 
-$ **sudo cp \~/spring26/lab3/lab3.service-student\_server /etc/systemd/system/lab3.service**
+$ **sudo cp \~/course/lab3/lab3.service-student\_server /etc/systemd/system/lab3.service**
 
 $ **sudo systemctl daemon-reload**
 

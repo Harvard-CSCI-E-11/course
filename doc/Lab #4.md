@@ -1,6 +1,6 @@
 # **![][image1]**
 
-# **CSCI E-11: Artificial Intelligence, the Internet-of-Things, and Cybersecurity** **Harvard Extension School** **Spring 2026**
+# **CSCI E-11: Artificial Intelligence, the Internet-of-Things, and Cybersecurity** **Harvard Extension School** **Spring 2027**
 
 # **Lab \#4: Message Board — An API server with password hashing**
 
@@ -194,7 +194,7 @@ First, make sure the application works.
 
 In one window type:
 
-`$ cd ~/spring26/lab4`
+`$ cd ~/course/lab4`
 
 Now lets use `poetry`, the python package manager, to install all the dependencies we need.
 
@@ -214,7 +214,7 @@ In a second window type:
 
 When you have verified that this is working (that is, the Message Board html is echoed back to you), type ^C in the first window to stop the flask application
 
-Notice that the server is now called `server:app`. This is because the server is the `app` object that is created in the file `~/spring26/lab4/server/main.py`
+Notice that the server is now called `server:app`. This is because the server is the `app` object that is created in the file `~/course/lab4/server/main.py`
 
 ## **Install the lab4.service gunicorn server on port 8004** {#install-the-lab4.service-gunicorn-server-on-port-8004}
 
@@ -222,7 +222,7 @@ In lab3 you installed the lab3 gunicorn service. Here you install the lab4 gunic
 
 Review the file:
 
-`$ cd ~/spring26/lab4`
+`$ cd ~/course/lab4`
 
 `$ cat lab4.service`
 
@@ -264,8 +264,8 @@ In this lab we will configure the `lab4` server so that it serves yet another da
 | :---- | :---- | :---- |
 | nginx server name | *`smashedemail`*`-lab3.csci-e-11.org` | *`smashedemail`*`-lab4.csci-e-11.org` |
 | reverse proxy port | localhost:8003 | localhost:8004 |
-| Installation directory | `/home/ubuntu/spring26/lab3` | `/home/ubuntu/spring26/lab4` |
-| Python virtual environment | `/home/ubuntu/spring26/lab3/.venv` | `/home/ubuntu/spring26/lab4/.venv` |
+| Installation directory | `/home/ubuntu/course/lab3` | `/home/ubuntu/course/lab4` |
+| Python virtual environment | `/home/ubuntu/course/lab3/.venv` | `/home/ubuntu/course/lab4/.venv` |
 | Application | Simple database lookup | Client/Server message board |
 
 ## **Expand the certificate** {#expand-the-certificate}
@@ -314,9 +314,9 @@ And change it to:
 
 NOTE: Make sure that you set the port to be 8004\! (Each lab uses a different port number\!)
 
-Similar to lab3, you can find this file at `~/spring26/lab4/lab4-nginx-patch`.
+Similar to lab3, you can find this file at `~/course/lab4/lab4-nginx-patch`.
 
-You may wish to review [CSCI E-11 Spring 2026 Lab \#3](https://docs.google.com/document/d/1pOeS03gJRGaUTezjs4-K6loY3SoVx4xRYk6Prj7WClU/edit?tab=t.0#heading=h.rv7641iuwu2) for instructions on how to edit this file.
+You may wish to review [Lab \#3](Lab%20%233.md) for instructions on how to edit this file.
 
 Test the config file with:
 
@@ -348,7 +348,7 @@ You can also try it from your web browser by going to the page **`https://smashe
 
 Please review the SQLite schema for lab 4:
 
-[https://github.com/Harvard-CSCI-E-11/spring26/blob/main/lab4/server/schema\_lab4.sql](https://github.com/Harvard-CSCI-E-11/spring26/blob/main/lab4/server/schema_lab4.sql)
+[https://github.com/Harvard-CSCI-E-11/spring27/blob/main/lab4/server/schema\_lab4.sql](https://github.com/Harvard-CSCI-E-11/spring27/blob/main/lab4/server/schema_lab4.sql)
 
 This is a simple schema that has two tables \- one for the API keys and one for the messages that are posted.
 
@@ -402,7 +402,7 @@ Is something not working? Here are some things to try:
 
 Here’s what it looks like on a good system:
 
-`ubuntu@sgarfinkelfas:~/spring26/lab4$ journalctl -u lab4.service`
+`ubuntu@sgarfinkelfas:~/course/lab4$ journalctl -u lab4.service`
 
 `Aug 17 23:47:58 sgarfinkelfas.csci-e-11.org systemd[1]: Started lab4.service - Gunicorn instance to serve Flask application for lab 4.`
 `Aug 17 23:47:58 sgarfinkelfas.csci-e-11.org gunicorn[29609]: [2025-08-17 23:47:58 +0000] [29609] [INFO] Starting gunicorn 23.0.0`
@@ -410,9 +410,9 @@ Here’s what it looks like on a good system:
 `Aug 17 23:47:58 sgarfinkelfas.csci-e-11.org gunicorn[29609]: [2025-08-17 23:47:58 +0000] [29609] [INFO] Using worker: sync`
 `Aug 17 23:47:58 sgarfinkelfas.csci-e-11.org gunicorn[29618]: [2025-08-17 23:47:58 +0000] [29618] [INFO] Booting worker with pid: 29618`
 `Aug 17 23:47:58 sgarfinkelfas.csci-e-11.org gunicorn[29619]: [2025-08-17 23:47:58 +0000] [29619] [INFO] Booting worker with pid: 29619`
-`Aug 17 23:52:18 sgarfinkelfas.csci-e-11.org gunicorn[29619]: [2025-08-17 23:52:18 +0000] [29619] [INFO] Worker reloading: /home/ubuntu/spring26/lab4/server/db.py modified`
+`Aug 17 23:52:18 sgarfinkelfas.csci-e-11.org gunicorn[29619]: [2025-08-17 23:52:18 +0000] [29619] [INFO] Worker reloading: /home/ubuntu/course/lab4/server/db.py modified`
 `Aug 17 23:52:18 sgarfinkelfas.csci-e-11.org gunicorn[29619]: [2025-08-17 23:52:18 +0000] [29619] [INFO] Worker exiting (pid: 29619)`
-`Aug 17 23:52:18 sgarfinkelfas.csci-e-11.org gunicorn[29618]: [2025-08-17 23:52:18 +0000] [29618] [INFO] Worker reloading: /home/ubuntu/spring26/lab4/server/db.py modified`
+`Aug 17 23:52:18 sgarfinkelfas.csci-e-11.org gunicorn[29618]: [2025-08-17 23:52:18 +0000] [29618] [INFO] Worker reloading: /home/ubuntu/course/lab4/server/db.py modified`
 `Aug 17 23:52:18 sgarfinkelfas.csci-e-11.org gunicorn[29618]: [2025-08-17 23:52:18 +0000] [29618] [INFO] Worker exiting (pid: 29618)`
 `Aug 17 23:52:18 sgarfinkelfas.csci-e-11.org gunicorn[29703]: [2025-08-17 23:52:18 +0000] [29703] [INFO] Booting worker with pid: 29703`
 `Aug 17 23:52:18 sgarfinkelfas.csci-e-11.org gunicorn[29704]: [2025-08-17 23:52:18 +0000] [29704] [INFO] Booting worker with pid: 29704`
@@ -425,7 +425,7 @@ Here’s what it looks like on a good system:
 
    **`sudo systemctl stop lab4`**
 
-   **`/home/ec2-user/spring26/lab4/venv/bin/gunicorn --reload -w 4 -b 127.0.0.1:8004 app:app`**
+   **`/home/ec2-user/course/lab4/venv/bin/gunicorn --reload -w 4 -b 127.0.0.1:8004 app:app`**
 
    Remember to restart the lab4 service when you have it working\!
 

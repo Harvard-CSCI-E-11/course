@@ -2,7 +2,7 @@
 
 To run this lab, log into your EC2 instance at Amazon and type:
 ```
-cd /home/ec2-user/spring26/lab5
+cd /home/ubuntu/course/lab5
 ```
 
 Then do these steps:
@@ -21,4 +21,3 @@ Then do these steps:
    sudo systemctl daemon-reload
    sudo systemctl start lab5.service
    ```
-

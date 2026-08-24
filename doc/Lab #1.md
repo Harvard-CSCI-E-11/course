@@ -1,6 +1,6 @@
 # **![][image1]**
 
-# **CSCI E-11: Artificial Intelligence, the Internet-of-Things, and Cybersecurity** **Harvard Extension School** **Spring 2026**
+# **CSCI E-11: Artificial Intelligence, the Internet-of-Things, and Cybersecurity** **Harvard Extension School** **Spring 2027**
 
 # **Lab \#1 \- Instance – Create an AWS EC2 instance and monitor for attacks**
 
@@ -357,17 +357,19 @@ We will eventually want to use the tool `make`, which lets us build programs aut
 
 # The `sudo` command means that the command `apt install make` is run as the super user. {#the-sudo-command-means-that-the-command-apt-install-make-is-run-as-the-super-user.}
 
-# **Install clone the course repo and install the e11 command** {#install-clone-the-course-repo-and-install-the-e11-command}
+# **Clone the course repo and install the e11 command** {#install-clone-the-course-repo-and-install-the-e11-command}
 
 We have created a collection of programs, configuration files, and documentation for this course. All of these are stored on GitHub in the CSCI E-11 Course Repo (repository). You can find it here:
 
-[https://github.com/Harvard-CSCI-E-11/spring26](https://github.com/Harvard-CSCI-E-11/spring26)
+[https://github.com/Harvard-CSCI-E-11/spring27](https://github.com/Harvard-CSCI-E-11/spring27)
 
-In order to complete the labs, you will need to “clone” this repo into the home directory of the **ubuntu** user on your instance.
+In order to complete the labs, you will need to “clone” this repo into the
+`course` directory in the home directory of the **ubuntu** user on your
+instance. The checkout will therefore be located at `$HOME/course`.
 
 Ubuntu 26.04 comes with the git client pre-installed, so the only thing you need to do is to type this command:
 
-`$` **`git clone https://github.com/Harvard-CSCI-E-11/spring26.git`**
+`$` **`git clone https://github.com/Harvard-CSCI-E-11/spring27.git "$HOME/course"`**
 
 (Note: the above goes all on a single line, and the “.git” at the end of the clone command is optional.)
 
@@ -381,7 +383,7 @@ This message is telling you that there are 1322 “objects” in the git repo at
 
 There’s a lot of other software that needs to be installed for CSCI E-11. Rather than making you install it all, we’ve created our own installer program. You can run it with a single command:
 
-`$ spring26/etc/install-e11`
+`$ "$HOME/course/etc/install-e11"`
 
 Once the installer finishes, run the following command:
 
@@ -393,9 +395,10 @@ This installer will:
 
 * Apply all necessary updates to your Ubuntu 26.04 operating system. (This is what takes the longest time\!)
 * Install the `aws` command (provided by Amazon Web Services)
-* Install the python `poetry` package manager
+* Install the `uv` Python package and project manager.
 * Install the `e11` command (which  we wrote specifically for this course) into the directory `$HOME/.local/bin`.
-* Install sample code for each of the labs, which you will find in the directories `spring26/lab1` through `spring26/lab8*`.
+* Install sample code for each of the labs, which you will find in the
+  directories `$HOME/course/lab1` through `$HOME/course/lab8*`.
 
 The second command above (the `source` command) updates your `PATH` environment variable to add `$HOME/.local/bin` to your path, so that you can run the `e11` command. (Logging out and logging back in would have the same effect.)
 

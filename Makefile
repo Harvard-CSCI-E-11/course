@@ -44,7 +44,7 @@ install:
 	uv tool install --force ./etc/e11-cli
 
 clean-all:
-	for name in node_modules .venv __pycache__ .pytest_cache ; do find . -name $$name -print0 | xargs -0 rm -rf ; done
+	for name in node_modules .venv __pycache__ .pytest_cache .aws-sam ; do find . -name $$name -print0 | xargs -0 rm -rf ; done
 
 distclean-all: clean-all
 .PHONY: lint-all check-all update-all sync-all lock-all install clean-all distclean-all

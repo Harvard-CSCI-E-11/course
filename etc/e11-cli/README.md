@@ -260,7 +260,7 @@ make stop_local_dynamodb      # Stop DynamoDB Local
 
 # How it Works
 
-This program can be found on [GitHub in the spring26 repo](https://github.com/Harvard-CSCI-E-11/spring26/tree/main/etc/e11-cli). The repo is checked out by the student and then installed as a uv tool in `$HOME/.local/bin` by the [install-e11](https://github.com/Harvard-CSCI-E-11/spring26/blob/main/etc/install-e11) installation script.
+This program can be found in the [spring27 repository](https://github.com/Harvard-CSCI-E-11/spring27/tree/main/etc/e11-cli). Students check out that repository as `$HOME/course`; the [install-e11](https://github.com/Harvard-CSCI-E-11/spring27/blob/main/etc/install-e11) installation script then installs `e11` as a uv tool in `$HOME/.local/bin`.
 
 ## Running from this repo
 

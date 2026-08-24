@@ -1,6 +1,6 @@
 # **![][image1]**
 
-# **CSCI E-11: Artificial Intelligence, the Internet-of-Things, and Cybersecurity** **Harvard Extension School** **Spring 2026**
+# **CSCI E-11: Artificial Intelligence, the Internet-of-Things, and Cybersecurity** **Harvard Extension School** **Spring 2027**
 
 # **Lab \#6: Adding Computer Vision**
 
@@ -65,7 +65,7 @@ For video learners, here are some videos from Amazon that we’ve looked at and 
 
 # **Building Upon Lab 5** {#building-upon-lab-5}
 
-Lab 6 builds upon Lab 5\. In particular, most of the files in the [lab6 folder of the git repo](https://github.com/Harvard-CSCI-E-11/spring26/tree/main/lab6/server) are symbolic links to the same files in the [lab5 folder](https://github.com/Harvard-CSCI-E-11/spring26/tree/main/lab5/server), the [lab4 folder](https://github.com/Harvard-CSCI-E-11/spring26/tree/main/lab4/server), and the [lab\_common](https://github.com/Harvard-CSCI-E-11/spring26/tree/main/lab_common) folder. The only files that are different will be:
+Lab 6 builds upon Lab 5\. In particular, most of the files in the [lab6 folder of the git repo](https://github.com/Harvard-CSCI-E-11/spring27/tree/main/lab6/server) are symbolic links to the same files in the [lab5 folder](https://github.com/Harvard-CSCI-E-11/spring27/tree/main/lab5/server), the [lab4 folder](https://github.com/Harvard-CSCI-E-11/spring27/tree/main/lab4/server), and the [lab\_common](https://github.com/Harvard-CSCI-E-11/spring27/tree/main/lab_common) folder. The only files that are different will be:
 
 	`lab6/Makefile` — contains new targets
 
@@ -154,7 +154,7 @@ This lab builds upon the AWS instance that we’ve been using.
 
    (We did this in previous labs and it is left to you to expand on those previous examples and setup the reverse proxy to point at the correct code. )
 
-2. Install the `lab6.service` file from the `/home/ubuntu/spring26/lab6` directory.
+2. Install the `lab6.service` file from the `/home/ubuntu/course/lab6` directory.
 
    (We also did this in previous labs — look to them for examples if you get stuck on this point.)
 
@@ -220,7 +220,7 @@ Your S3\_BUCKET name for this app is defined in the file `image_controller.py` a
 
 You can do both of these by logging in to your Instance and typing:
 
-`$ cd $HOME/spring26/lab6`
+`$ cd $HOME/course/lab6`
 `$ make init-s3`
 
 # **Create an API Key**  {#create-an-api-key}
@@ -257,7 +257,7 @@ Here are other things to try:
 
 3. Use the `git diff` command to compare what’s different between your version of the git repo and the one on GitHub:
 
-   `$ cd $HOME/spring26/lab6`
+   `$ cd $HOME/course/lab6`
    `$ git diff origin`
 
 4. Were the pictures uploaded to S3? Take a look:

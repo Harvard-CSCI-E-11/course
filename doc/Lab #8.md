@@ -1,6 +1,6 @@
 # **![][image1]**
 
-# **CSCI E-11: Artificial Intelligence, the Internet-of-Things, and Cybersecurity** **Harvard Extension School** **Spring 2026**
+# **CSCI E-11: Artificial Intelligence, the Internet-of-Things, and Cybersecurity** **Harvard Extension School** **Spring 2027**
 
 # **Lab \#8: AI and IoT meet cybersecurity: Making the MEMENTO upload photos to your website**
 
@@ -18,7 +18,7 @@
 
 Welcome to the eighth and final lab. In this lab we will drop three programs onto your MEMENTO that exercise the camera. The last program will upload photos up to both the CSCI-E-11 dashboard and to the AI-enabled photoboard you developed for Lab 6\.
 
-**To get an A you’ll need to re-create the Lab 6 messageboard with a new virtual host on your own, without using any templates. That is, you will be creating it in the /home/ubuntu/spring26/lab8 directory and with the lab8 smashed email domain.**
+**To get an A you’ll need to re-create the Lab 6 messageboard with a new virtual host on your own, without using any templates. That is, you will be creating it in the /home/ubuntu/course/lab8 directory and with the lab8 smashed email domain.**
 
 Objectives for this lab:
 
@@ -43,9 +43,9 @@ Please read the following:
 
 In the lab8/memento directory you will find some code to get you started.  For each of these programs, open them with Thonny, copy the program’s source code, and paste it into the `code.py` file on your MEMENTO.
 
-* [`camera1.py`](https://github.com/Harvard-CSCI-E-11/spring26/blob/main/lab8_memento/camera1.py) — This is Adafruit’s MEMENTO camera demo with minor modifications to make it work a little more reliably with the current version of CircuitPython. The program is not well documented, so we used Google’s GEMINI3 to review the code and write documentation, which you can view in the file [`camera1.md`](https://github.com/Harvard-CSCI-E-11/spring26/blob/main/lab8_memento/camera1.md).
-* [`camera2.py`](https://github.com/Harvard-CSCI-E-11/spring26/blob/main/lab8_memento/camera2.py) —This is a bare-bones point-and-shoot camera program. When you point the camera and press the shutter it focuses the lens and then takes a picture. We’ve added audio feedback to the program using the `pycam.tone()` functions built in to the `adafruit_pycamera` python module. We also moved from the `neopixel` library used in Lab \#7 to using the `pycam.pixels[]`  array to control the pixels. Check it out\!
-* [`camera3.py`](https://github.com/Harvard-CSCI-E-11/spring26/blob/main/lab8_memento/camera3.py) — This is the final program that takes a photo and uploads it to the dashboard and the lab6 imageboard.
+* [`camera1.py`](https://github.com/Harvard-CSCI-E-11/spring27/blob/main/lab8_memento/camera1.py) — This is Adafruit’s MEMENTO camera demo with minor modifications to make it work a little more reliably with the current version of CircuitPython. The program is not well documented, so we used Google’s GEMINI3 to review the code and write documentation, which you can view in the file [`camera1.md`](https://github.com/Harvard-CSCI-E-11/spring27/blob/main/lab8_memento/camera1.md).
+* [`camera2.py`](https://github.com/Harvard-CSCI-E-11/spring27/blob/main/lab8_memento/camera2.py) —This is a bare-bones point-and-shoot camera program. When you point the camera and press the shutter it focuses the lens and then takes a picture. We’ve added audio feedback to the program using the `pycam.tone()` functions built in to the `adafruit_pycamera` python module. We also moved from the `neopixel` library used in Lab \#7 to using the `pycam.pixels[]`  array to control the pixels. Check it out\!
+* [`camera3.py`](https://github.com/Harvard-CSCI-E-11/spring27/blob/main/lab8_memento/camera3.py) — This is the final program that takes a photo and uploads it to the dashboard and the lab6 imageboard.
 
 You will also need to edit the file settings.toml on the CircuitPython device. When you are finished with camera3.py and have it uploading to your lab6 image board, it should look something like this:
 

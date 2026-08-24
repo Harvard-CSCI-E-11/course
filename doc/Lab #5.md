@@ -1,6 +1,6 @@
 # **![][image1]**
 
-# **CSCI E-11: Artificial Intelligence, the Internet-of-Things, and Cybersecurity** **Harvard Extension School** **Spring 2026**
+# **CSCI E-11: Artificial Intelligence, the Internet-of-Things, and Cybersecurity** **Harvard Extension School** **Spring 2027**
 
 # **Lab \#5: Turn your message board into a photoboard\!**
 
@@ -95,7 +95,7 @@ Lab 5 builds upon Lab 4\. In particular, most of the files in the [lab5 folder o
 
 We’ve avoided modifying the other files. The file `main.py` already imports the file `image_controller.py` (the code catches the ImportError that results if the module is not present), and the database controller reads and executes all of the files sending `.sql` in the `app` directory. In fact, many of the entries in the `server/` directory are actually symbolic links to the versions of the same files in either the `lab_common` or the `lab4` directory:
 
-**`spring26/lab5/server:`**
+**`course/lab5/server:`**
 **`Length  Entry (-> target)`**
 **`------`**
     **`0   __init__.py`**
@@ -265,7 +265,7 @@ You can test that you got this right by logging into your instance and typing:
 
 
 
-3. Install the `lab5.service` file from the `/home/ubuntu/spring26/lab5` directory.
+3. Install the `lab5.service` file from the `/home/ubuntu/course/lab5` directory.
 
    `$ sudo cp lab5.service /etc/systemd/system/`
 
@@ -277,7 +277,7 @@ You can test that you got this right by logging into your instance and typing:
 
 **Be sure you are in the lab5 directory:**
 
-`$ cd ~/spring26/lab5`
+`$ cd ~/course/lab5`
 
 Then execute these commands:
 
@@ -323,7 +323,7 @@ You can change it if you wish. The CORS policy is specified in the file lab5/app
 
 Now **create the bucket and set the CORS policy** by logging in to your instance and typing:
 
-`$ cd $HOME/spring26/lab5`
+`$ cd $HOME/course/lab5`
 `$ make init-s3`
 
 # **Create an API Key**  {#create-an-api-key}
@@ -353,7 +353,7 @@ Here are other things to try:
 
 3. Use the `git diff` command to compare what’s different between your version of the git repo and the one on GitHub:
 
-   `$ cd $HOME/spring26/lab5`
+   `$ cd $HOME/course/lab5`
 
    `$ git diff origin`
 
