@@ -65,7 +65,7 @@ def _run_canvas_grades(tmp_path, monkeypatch, roster_entries, grade_user_ids=Non
     return rows, captured.getvalue()
 
 
-def test_canvas_grades_matches_via_middle_initial_strip(tmp_path, monkeypatch):
+def test_canvas_grades_matches_via_middle_initial_strip(tmp_path, monkeypatch, clean_dynamodb):
     """Match should succeed by stripping middle initial from claims name.
 
     The roster entry has ``claims['name'] = "Simson L. Garfinkel"`` and a
@@ -95,7 +95,7 @@ def test_canvas_grades_matches_via_middle_initial_strip(tmp_path, monkeypatch):
     assert "Unmatched.  Will not continue" not in out
 
 
-def test_canvas_grades_matches_via_preferred_name(tmp_path, monkeypatch):
+def test_canvas_grades_matches_via_preferred_name(tmp_path, monkeypatch, clean_dynamodb):
     """Match should succeed via preferred_name when claims name does not match.
 
     The roster entry has a claims name that will never match the template even
@@ -125,7 +125,8 @@ def test_canvas_grades_matches_via_preferred_name(tmp_path, monkeypatch):
     assert "Unmatched.  Will not continue" not in out
 
 
-def test_canvas_grades_keeps_unmatched_template_students_with_zeroes(tmp_path, monkeypatch):
+def test_canvas_grades_keeps_unmatched_template_students_with_zeroes(
+        tmp_path, monkeypatch, clean_dynamodb):
     """Unmatched template rows should still be written with a zero score."""
     from e11.e11admin import staff
     from e11.e11_common import A
@@ -156,7 +157,8 @@ def test_canvas_grades_keeps_unmatched_template_students_with_zeroes(tmp_path, m
     assert "Student, Unregistered" in out
 
 
-def test_canvas_grades_matches_when_claims_name_has_middle_name(tmp_path, monkeypatch):
+def test_canvas_grades_matches_when_claims_name_has_middle_name(
+        tmp_path, monkeypatch, clean_dynamodb):
     """Match should succeed when Harvard claims include a full middle name."""
     from e11.e11admin import staff
     from e11.e11_common import A

@@ -153,6 +153,8 @@
 
 - Enabled all GitHub Actions checks on the repository's `update-grade`
   default branch.
+- Made the Canvas grade-export tests explicitly create and clean their
+  DynamoDB Local tables instead of depending on tables left by another test.
 - Changed the leaderboard Lambda's generated manifest from
   `src/requirements.txt` to `src/leaderboard_app/requirements.txt` and updated
   the SAM build metadata to consume it from that location.
