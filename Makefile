@@ -7,6 +7,10 @@ PYPROJECT_DIRS := \
 	lab8_linux lab8_memento lab_common \
 	etc/e11-cli etc/e11-cli/lambda-home etc/e11-cli/lambda-leaderboard
 LINTDIRS := $(PYPROJECT_DIRS)
+GENERATED_REQUIREMENTS := \
+	etc/e11-cli/lambda-home/src/requirements.txt \
+	etc/e11-cli/lambda-leaderboard/src/requirements.txt \
+	etc/e11-cli/lambda-leaderboard/src/leaderboard_app/requirements.txt
 
 lint-all:
 	@fail=0; \
@@ -44,7 +48,8 @@ install:
 	uv tool install --force ./etc/e11-cli
 
 clean-all:
-	for name in node_modules .venv __pycache__ .pytest_cache .aws-sam ; do find . -name $$name -print0 | xargs -0 rm -rf ; done
+	for name in node_modules .venv __pycache__ .pytest_cache .aws-sam '*.egg-info' ; do find . -type d -name "$$name" -print0 | xargs -0 rm -rf ; done
+	/bin/rm -f $(GENERATED_REQUIREMENTS)
 
 distclean-all: clean-all
 .PHONY: lint-all check-all update-all sync-all lock-all install clean-all distclean-all

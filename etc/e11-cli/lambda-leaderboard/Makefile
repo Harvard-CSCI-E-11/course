@@ -19,7 +19,7 @@ sam-sync: install
 	sam sync --code --watch
 
 .PHONY: prod-vbd stage-vbd
-prod-vbd: template.yaml samconfig-prod.toml src/requirements.txt vend-e11 lint check
+prod-vbd: template.yaml samconfig-prod.toml src/leaderboard_app/requirements.txt vend-e11 lint check
 	sam build --parallel --use-container --config-file samconfig-prod.toml -t template.yaml
 	sam deploy --config-file "$$(pwd)/samconfig-prod.toml"  --parameter-overrides DeploymentTimestamp="$$(date +'%Y-%m-%dT%H:%M:%S%z %Z')" --no-confirm-changeset -t .aws-sam/build/template.yaml
 	curl --silent  https://leaderboard.csci-e-11.org/ | head -3
@@ -28,9 +28,9 @@ prod-tail:
 	sam logs --stack-name leaderboard --name LeaderboardFlaskFunction --tail   --region us-east-1   --profile fas
 
 # This target generates the requirements.txt for SAM to use
-src/requirements.txt: uv.lock pyproject.toml
+src/leaderboard_app/requirements.txt: uv.lock pyproject.toml
 	@echo "--- Exporting requirements.txt from uv ---"
-	uv export --locked --no-dev --no-emit-project --no-hashes --format requirements.txt --output-file src/requirements.txt
+	uv export --locked --no-dev --no-emit-project --no-hashes --format requirements.txt --output-file src/leaderboard_app/requirements.txt
 
 # Useful functions
 list-cloud-resources:
@@ -53,3 +53,4 @@ vend-e11: install
 distclean:
 	/bin/rm -rf .venv
 	/bin/rm -f instance/message_board.db
+	/bin/rm -f src/requirements.txt src/leaderboard_app/requirements.txt

@@ -76,7 +76,8 @@
 - Made Lambda linting non-mutating; `make lint` now reports drift, while the
   explicit `make format` target applies Ruff fixes and formatting.
 - Corrected the repository pre-commit hook so staged filenames containing
-  spaces are checked and re-staged as complete paths.
+  spaces are checked and re-staged as complete paths. Clean staged files are
+  now silent; the hook still reports warnings and files it actually fixes.
 - Simplified nested conditions and context managers, removed redundant
   exception interpolation, narrowed DynamoDB cleanup exceptions, and removed an
   unused duplicated hostname-suffix constant. These changes preserve behavior
@@ -147,3 +148,15 @@
 - This documentation change anticipates the installer, runtime, service, and
   test migrations tracked by issues #56--#62; those implementations must land
   before the new checkout instructions are operationally complete.
+
+### Lambda requirements cleanup
+
+- Changed the leaderboard Lambda's generated manifest from
+  `src/requirements.txt` to `src/leaderboard_app/requirements.txt` and updated
+  the SAM build metadata to consume it from that location.
+- Removed the obsolete, manually maintained Lambda test requirement files;
+  development dependencies are defined by each project's `pyproject.toml` and
+  `uv.lock`.
+- Updated root `clean-all` to remove both Lambda export manifests, including the
+  leaderboard's former generated location, while preserving manually curated
+  CircuitPython requirement inputs.

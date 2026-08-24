@@ -4,6 +4,6 @@ set -e
 # Process staged paths one at a time so spaces remain part of the filename.
 git diff --cached --name-only --diff-filter=ACMR | while IFS= read -r file; do
     [ -z "$file" ] && continue
-    etc/fix_trailing_whitespace.py "$file"
+    etc/fix_trailing_whitespace.py --quiet "$file"
     git add -- "$file"
 done

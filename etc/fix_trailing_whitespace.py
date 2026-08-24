@@ -106,6 +106,10 @@ def fix_trailing_whitespace(filepath):
 
 def main():
     """Main entry point."""
+    args = sys.argv[1:]
+    quiet = "--quiet" in args
+    args = [arg for arg in args if arg != "--quiet"]
+
     # Find repo root (directory containing .git)
     repo_root = Path(__file__).parent.parent.resolve()
     if not (repo_root / ".git").exists():
@@ -113,10 +117,10 @@ def main():
         sys.exit(1)
 
     # Check if files were provided on command line
-    if len(sys.argv) > 1:
+    if args:
         # Use files provided on command line
         files_to_check = []
-        for arg in sys.argv[1:]:
+        for arg in args:
             filepath = Path(arg)
             # If relative path, make it relative to current working directory
             if not filepath.is_absolute():
@@ -135,10 +139,12 @@ def main():
             print("Error: No valid files provided", file=sys.stderr)
             sys.exit(1)
 
-        print(f"Checking {len(files_to_check)} file(s) specified on command line")
+        if not quiet:
+            print(f"Checking {len(files_to_check)} file(s) specified on command line")
     else:
         # Scan all git-tracked files
-        print(f"Scanning git repository at {repo_root}")
+        if not quiet:
+            print(f"Scanning git repository at {repo_root}")
         tracked_files = get_git_tracked_files(repo_root)
         files_to_check = [repo_root / filepath for filepath in tracked_files if (repo_root / filepath).exists()]
 
@@ -149,7 +155,8 @@ def main():
             files_with_issues.append((filepath, line_num))
 
     if not files_with_issues:
-        print("No trailing whitespace found. All files are clean!")
+        if not quiet:
+            print("No trailing whitespace found. All files are clean!")
         return 0
 
     print(f"\nFound {len(files_with_issues)} file(s) with trailing whitespace:")
