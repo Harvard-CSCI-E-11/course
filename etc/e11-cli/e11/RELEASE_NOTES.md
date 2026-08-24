@@ -151,8 +151,8 @@
 
 ### Lambda requirements cleanup
 
-- Enabled all GitHub Actions checks on the repository's `update-grade`
-  default branch.
+- Restored `main` as the pull-request base and limited direct-push GitHub
+  Actions checks to `main` and `dev`; feature branches run through PR checks.
 - Made the Canvas grade-export tests explicitly create and clean their
   DynamoDB Local tables instead of depending on tables left by another test.
 - Limited leaderboard linting to its Python sources so pylint does not inspect
