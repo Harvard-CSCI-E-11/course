@@ -1,4 +1,6 @@
 .PHONY: install validate lint check test clean
+PYTHON_SOURCES := $(wildcard src/leaderboard_app/*.py)
+
 install:
 	uv sync --locked
 
@@ -9,7 +11,7 @@ check: install vend-e11
 	uv run --locked pytest --log-cli-level=DEBUG
 
 lint: install vend-e11 validate
-	uv run --locked pylint src/leaderboard_app
+	uv run --locked pylint $(PYTHON_SOURCES)
 
 local-debug: install vend-e11
 	PYTHONPATH=src uv run --locked python -c 'from leaderboard_app.flask_app import app; app.run(debug=True)'
