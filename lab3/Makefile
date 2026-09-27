@@ -14,12 +14,11 @@ PYTHON=.venv/bin/python3
 install: $(PYTHON)
 
 $(PYTHON):
-	poetry config virtualenvs.in-project true
-	poetry install		# installs the current poetry.lock, do not update
+	uv sync --locked
 
 lint: $(PYTHON)
-	poetry run pylint student_data.py simple_flask_application.py
-	poetry run pyright *.py
+	uv run --locked pylint student_data.py simple_flask_application.py
+	uv run --locked pyright *.py
 
 
 distclean:

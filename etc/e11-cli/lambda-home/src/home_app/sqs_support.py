@@ -22,18 +22,18 @@ layer of validation that the message content hasn't been tampered with.
 import functools
 import json
 import os
-from typing import Any, Dict, Optional
+from typing import Any
 
 from botocore.exceptions import ClientError
-from itsdangerous import Signer, BadSignature
-
+from e11.e11_common import secretsmanager_client, sqs_client
 from e11.e11core.utils import get_logger
-from e11.e11_common import sqs_client, secretsmanager_client
+from itsdangerous import BadSignature, Signer
 
 from . import api
 
 LOGGER = get_logger("home")
-#SQS_QUEUE_ARN = os.environ.get("SQS_QUEUE_ARN", "")
+# SQS_QUEUE_ARN = os.environ.get("SQS_QUEUE_ARN", "")
+
 
 def sqs_queue_url():
     try:
@@ -42,6 +42,7 @@ def sqs_queue_url():
         LOGGER.exception("Environment variable SQS_QUEUE_URL not set")
         raise
 
+
 def sqs_secret_id():
     try:
         return os.environ["SQS_SECRET_ID"]
@@ -49,20 +50,27 @@ def sqs_secret_id():
         LOGGER.exception("Environment variable SQS_SECRET_ID not set")
         raise
 
+
 @functools.lru_cache(maxsize=1)
-def _get_sqs_auth_secret() -> Optional[str]:
+def _get_sqs_auth_secret() -> str | None:
     """
     Get the shared secret for SQS message authentication from Secrets Manager.
     Results are cached to avoid repeated Secrets Manager calls.
     """
     try:
-        secret_response = secretsmanager_client.get_secret_value(SecretId=sqs_secret_id())
+        secret_response = secretsmanager_client.get_secret_value(
+            SecretId=sqs_secret_id()
+        )
         secret_string = secret_response.get("SecretString", "")
         # The secret might be stored as JSON or as a plain string
         try:
             secret_dict = json.loads(secret_string)
             # Try common key names
-            secret = secret_dict.get("sqs_auth_secret") or secret_dict.get("auth_secret") or secret_dict.get("secret")
+            secret = (
+                secret_dict.get("sqs_auth_secret")
+                or secret_dict.get("auth_secret")
+                or secret_dict.get("secret")
+            )
         except json.JSONDecodeError:
             # Plain string?
             secret = secret_string
@@ -70,12 +78,14 @@ def _get_sqs_auth_secret() -> Optional[str]:
         if not secret:
             raise ValueError("SQS auth secret found but empty in Secrets Manager")
         return secret
-    except (ClientError, json.JSONDecodeError, KeyError) as e:
-        LOGGER.exception("Failed to get SQS auth secret from Secrets Manager: %s", e)
+    except ClientError, json.JSONDecodeError, KeyError:
+        LOGGER.exception("Failed to get SQS auth secret from Secrets Manager")
         raise
 
 
-def sign_sqs_message(action: str, method: str, payload: Optional[Dict[str, Any]] = None) -> str:
+def sign_sqs_message(
+    action: str, method: str, payload: dict[str, Any] | None = None
+) -> str:
     """
     Create a signed SQS message body with authentication token.
 
@@ -94,12 +104,12 @@ def sign_sqs_message(action: str, method: str, payload: Optional[Dict[str, Any]]
     if payload is None:
         payload_str = "null"
     else:
-        payload_str = json.dumps(payload, sort_keys=True, separators=(',', ':'))
+        payload_str = json.dumps(payload, sort_keys=True, separators=(",", ":"))
 
     canonical_message = f"{action}:{method}:{payload_str}"
 
     # Build the message body
-    message_body: Dict[str, Any] = {
+    message_body: dict[str, Any] = {
         "action": action,
         "method": method,
         "payload": payload,
@@ -111,16 +121,22 @@ def sign_sqs_message(action: str, method: str, payload: Optional[Dict[str, Any]]
         signer = Signer(secret_key=secret, salt="sqs-auth-v1")
         auth_token = signer.sign(canonical_message)
         # Signer.sign() returns bytes, decode to string for JSON serialization
-        message_body["auth_token"] = auth_token.decode('utf-8') if isinstance(auth_token, bytes) else auth_token
+        message_body["auth_token"] = (
+            auth_token.decode("utf-8") if isinstance(auth_token, bytes) else auth_token
+        )
         LOGGER.debug("SQS message signed for action=%s method=%s", action, method)
     else:
-        LOGGER.debug("SQS message not signed (authentication disabled) for action=%s method=%s", action, method)
+        LOGGER.debug(
+            "SQS message not signed (authentication disabled) for action=%s method=%s",
+            action,
+            method,
+        )
         raise RuntimeError("Could not get sqs_auth_secret")
 
     return json.dumps(message_body)
 
 
-def validate_sqs_message_auth(body: Dict[str, Any]) -> bool:
+def validate_sqs_message_auth(body: dict[str, Any]) -> bool:
     """
     Validate the authentication token in an SQS message.
 
@@ -157,7 +173,7 @@ def validate_sqs_message_auth(body: Dict[str, Any]) -> bool:
     # Create a deterministic JSON representation of the payload
     if payload is None:
         raise ValueError("payload not provided")
-    payload_str = json.dumps(payload, sort_keys=True, separators=(',', ':'))
+    payload_str = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     canonical_message = f"{action}:{method}:{payload_str}"
 
     # Use itsdangerous.Signer to validate the signature
@@ -168,7 +184,7 @@ def validate_sqs_message_auth(body: Dict[str, Any]) -> bool:
     try:
         # This will raise BadSignature if the signature doesn't match
         # unsign() returns the original message (bytes), so we decode and compare
-        unsigned_message = signer.unsign(provided_token).decode('utf-8')
+        unsigned_message = signer.unsign(provided_token).decode("utf-8")
         if unsigned_message != canonical_message:
             LOGGER.error("SQS message canonical content mismatch")
             raise BadSignature("Signature mispatch")
@@ -179,8 +195,13 @@ def validate_sqs_message_auth(body: Dict[str, Any]) -> bool:
         LOGGER.exception("SQS message auth_token validation failed")
         raise
 
-def sqs_send_message(message_body: str, *, delay_seconds: int = 0,
-                     message_attributes: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+
+def sqs_send_message(
+    message_body: str,
+    *,
+    delay_seconds: int = 0,
+    message_attributes: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """
     Send one message to the stack-owned queue.
 
@@ -192,7 +213,7 @@ def sqs_send_message(message_body: str, *, delay_seconds: int = 0,
     Returns:
         boto3's response (includes MessageId).
     """
-    kwargs: Dict[str, Any] = {
+    kwargs: dict[str, Any] = {
         "QueueUrl": sqs_queue_url(),
         "MessageBody": message_body,
     }
@@ -202,11 +223,17 @@ def sqs_send_message(message_body: str, *, delay_seconds: int = 0,
         # boto3 expects the SQS wire format for attributes.
         kwargs["MessageAttributes"] = message_attributes
 
-    return sqs_client.send_message(**kwargs)# type: ignore[return-value]
+    return sqs_client.send_message(**kwargs)  # type: ignore[return-value]
 
-def sqs_send_signed_message(action: str, method: str, payload: Optional[Dict[str, Any]] = None,
-                           *, delay_seconds: int = 0,
-                           message_attributes: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+
+def sqs_send_signed_message(
+    action: str,
+    method: str,
+    payload: dict[str, Any] | None = None,
+    *,
+    delay_seconds: int = 0,
+    message_attributes: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """
     Send a signed SQS message to the queue.
 
@@ -223,11 +250,14 @@ def sqs_send_signed_message(action: str, method: str, payload: Optional[Dict[str
         boto3's response (includes MessageId).
     """
     signed_body = sign_sqs_message(action, method, payload)
-    return sqs_send_message(signed_body, delay_seconds=delay_seconds, message_attributes=message_attributes)
+    return sqs_send_message(
+        signed_body, delay_seconds=delay_seconds, message_attributes=message_attributes
+    )
 
 
-def sqs_receive_one(*, wait_seconds: int = 10, visibility_timeout: int = 60,
-                    validate_auth: bool = True) -> Optional[Dict[str, Any]]:
+def sqs_receive_one(
+    *, wait_seconds: int = 10, visibility_timeout: int = 60, validate_auth: bool = True
+) -> dict[str, Any] | None:
     """
     Long-poll for up to wait_seconds and return ONE message (or None).
 
@@ -259,16 +289,21 @@ def sqs_receive_one(*, wait_seconds: int = 10, visibility_timeout: int = 60,
         try:
             body = json.loads(msg.get("body", ""))
             if not validate_sqs_message_auth(body):
-                LOGGER.error("SQS messageId=%s: Authentication validation failed", msg.get("messageId"))
+                LOGGER.error(
+                    "SQS messageId=%s: Authentication validation failed",
+                    msg.get("messageId"),
+                )
                 raise ValueError("SQS message authentication failed")
         except json.JSONDecodeError as e:
-            LOGGER.error("SQS messageId=%s: Invalid JSON in body: %s", msg.get("messageId"), e)
+            LOGGER.error(
+                "SQS messageId=%s: Invalid JSON in body: %s", msg.get("messageId"), e
+            )
             raise ValueError("Invalid JSON in SQS message body") from e
 
     return msg  # type: ignore[return-value]
 
 
-def is_sqs_event(event: Dict[str, Any]) -> bool:
+def is_sqs_event(event: dict[str, Any]) -> bool:
     recs = event.get("Records")
     return (
         isinstance(recs, list)
@@ -278,7 +313,7 @@ def is_sqs_event(event: Dict[str, Any]) -> bool:
 
 
 # pylint: disable=unused-argument
-def handle_sqs_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+def handle_sqs_event(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """
     Process SQS-triggered deliveries.
     Note: with an SQS event source mapping, messages are deleted automatically
@@ -321,14 +356,16 @@ def handle_sqs_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 "stage": "sqs",
                 "http": {
                     "method": method,
-                    "sourceIp": record.get("attributes", {}).get("SenderId", "sqs-internal")
-                }
+                    "sourceIp": record.get("attributes", {}).get(
+                        "SenderId", "sqs-internal"
+                    ),
+                },
             },
             "source": "sqs",
             "messageId": msg_id,
             "receiptHandle": record.get("receiptHandle"),
         }
-        action  = body.get("action", "")
+        action = body.get("action", "")
         payload = body.get("payload")  # Can be None
 
         # Call api.dispatch with the action and method from the message
@@ -337,7 +374,10 @@ def handle_sqs_event(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             results.append({"messageId": msg_id, "result": result})
 
         except ClientError as e:
-            if e.response.get('Error',{}).get('Code','') == 'ProvisionedThroughputExceededException':
+            if (
+                e.response.get("Error", {}).get("Code", "")
+                == "ProvisionedThroughputExceededException"
+            ):
                 LOGGER.warning("Throttled by DynamoDB. Adding to retry list.")
                 batch_item_failures.append({"itemIdentifier": msg_id})
             else:

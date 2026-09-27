@@ -1,8 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-    <h1>
-        {% block title %}Camera{% endblock %}
-    </h1>
+    <h1>{% block title %}Camera{% endblock %}</h1>
     <p>This form is for testing the Camera. Enter the API_KEY and the API_SECRET_KEY</p>
     <form class='pure-form pure-form-aligned'
           action="api/post-message"
@@ -27,8 +25,8 @@
         </fieldset>
     </form>
     <div id='status-message'></div>
-</div>
-<!-- bring in the messageboard -->
-<script src="static/camera.js"> </script>
+    </div>
+    <!-- bring in the messageboard -->
+    <script src="static/camera.js"> </script>
 {% endblock %}
 <!-- index end -->

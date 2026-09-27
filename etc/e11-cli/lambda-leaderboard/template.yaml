@@ -52,8 +52,7 @@ Parameters:
     Description: Route53 Zone ID
   CertificateArn:
     Type: String
-    Default: ""
-    Description: (Optional) ACM Certificate ARN for the domain. Leave blank to auto-create.
+    Description: ACM Certificate ARN for the domain, or an empty deployment parameter to auto-create it.
   LogLevel:
     Type: String
     Default: INFO
@@ -95,11 +94,11 @@ Resources:
   LeaderboardFlaskFunction:
     Type: AWS::Serverless::Function
     Metadata:
-      BuildMethod: python3.13
+      BuildMethod: python3.14
       BuildProperties:
-        RequirementsFile: requirements.txt   # relative to CodeUri (src/)
+        RequirementsFile: leaderboard_app/requirements.txt  # relative to CodeUri (src/)
     Properties:
-      Runtime: python3.13
+      Runtime: python3.14
       CodeUri: src/
       Handler: leaderboard_app.leaderboard.lambda_handler
       Timeout: 60

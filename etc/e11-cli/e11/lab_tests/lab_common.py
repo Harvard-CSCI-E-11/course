@@ -129,11 +129,11 @@ def test_venv_present( tr:TestRunner):
     if r.exit_code != 0:
         raise TestFail(f"lab directory {labdir} does not contain virtual environment (expected .venv/bin/python)")
 
-    r = tr.run_command(f"cd {labdir}; poetry run python -c 'print(0)'")
+    r = tr.run_command(f"cd {labdir}; uv run --locked python -c 'print(0)'")
     if r.exit_code != 0:
-        raise TestFail(f"'cd {labdir}; poetry run python' does not work {labdir}", terminate=True)
+        raise TestFail(f"'cd {labdir}; uv run --locked python' does not work {labdir}", terminate=True)
 
-    return f"virtual environment configured in {labdir} and 'poetry run python' command works."
+    return f"virtual environment configured in {labdir} and 'uv run --locked python' command works."
 
 ### SERVICE FILES
 @timeout(DEFAULT_TEST_TIMEOUT)

@@ -54,7 +54,7 @@ Tests follow a pattern where they use the TestRunner methods to execute commands
 The test context provides information about the lab environment:
 
 - `ctx.lab` - Lab name (e.g., "lab3")
-- `ctx.labdir` - Full path to the lab directory (e.g., "/home/ubuntu/spring26/etc/lab3")
+- `ctx.labdir` - Full path to the lab directory (e.g., "/home/ubuntu/course/lab3")
 - `ctx.public_ip` - Public IP address of the VM (for grading)
 - `ctx.email` - Student's email address
 - `ctx.smashedemail` - Hashed email for DNS names
@@ -160,4 +160,3 @@ The test execution framework is implemented in the `e11/e11core/` module. See th
 - `decorators.py` - Decorators like `@timeout` and `@retry`
 
 Also see `TESTING.md` in the project root for general testing documentation.
-

@@ -14,7 +14,7 @@ e11-cli/
 │   ├── main.py                   # Main CLI command handler (do_register, do_grade, do_config, etc.)
 │   ├── support.py                # Utility functions for file/config access
 │   ├── doctor.py                 # System diagnostic tool
-│   ├── staff.py                  # Staff-only commands
+│   ├── e11admin/staff.py         # Staff-only command implementations
 │   ├── e11_common.py             # Shared DynamoDB and AWS utilities
 │   ├── e11admin/                 # Admin CLI tool (staff-only commands)
 │   │   └── cli.py                # Entry point for 'e11admin' command
@@ -66,12 +66,12 @@ e11-cli/
 **When making changes to `e11/` or `e11core/`:**
 - These changes impact **both** the CLI tool and the Lambda functions
 - After modifying `e11/` or `e11core/`, you must:
-  1. Rebuild the wheel: `poetry build` (or `make` in root)
+  1. Rebuild the wheel: `uv build --wheel` (or use `make vend-e11` in a Lambda directory)
   2. Re-vend the wheel: `cd lambda-home && make vend-e11` and `cd lambda-leaderboard && make vend-e11`
   3. Test both the CLI and Lambda functions
 
 **The vendoring process:**
-- Root `Makefile` or `poetry build` creates `dist/e11-*.whl`
+- `uv build --wheel` creates `dist/e11-*.whl`
 - `lambda-home/Makefile` target `vend-e11` copies the wheel to `src/home_app/e11.whl`
 - `lambda-leaderboard/Makefile` target `vend-e11` copies the wheel to `src/leaderboard_app/e11.whl`
 - Lambda functions import from the vendored wheel: `from e11.e11_common import ...`
@@ -87,7 +87,7 @@ e11-cli/
 
 #### E11 Admin CLI (`e11/e11admin/cli.py`)
 - **e11admin**: Staff-only administrative commands for managing course infrastructure
-- Installed as a separate CLI command via Poetry script entry point: `e11admin = "e11.e11admin.cli:main"`
+- Installed as a separate CLI command via the standard project entry point: `e11admin = "e11.e11admin.cli:main"`
 - Runs on faculty desktop computers, not on student VMs
 
 #### Lambda-Home (`lambda-home/src/home_app/`)
@@ -143,9 +143,9 @@ e11-cli/
 
 ### 6. Dependencies
 
-- **E11 CLI**: Python 3.12 (Ubuntu 24.04)
-- **Lambda-Home**: Python 3.13 (AWS Lambda runtime)
-- **Lambda-Leaderboard**: Python 3.13 (AWS Lambda runtime)
+- **E11 CLI**: Python 3.14 (Ubuntu 26.04)
+- **Lambda-Home**: Python 3.14 (AWS Lambda runtime)
+- **Lambda-Leaderboard**: Python 3.14 (AWS Lambda runtime)
 - Shared dependencies: boto3, requests, paramiko, jinja2, etc.
 
 ## Development Workflow
@@ -153,7 +153,7 @@ e11-cli/
 1. **Make changes to `e11/` or `e11core/`**
 2. **Rebuild and re-vend the wheel:**
    ```bash
-   poetry build
+   uv build --wheel
    cd lambda-home && make vend-e11
    cd ../lambda-leaderboard && make vend-e11
    ```
@@ -168,9 +168,8 @@ e11-cli/
 
 ## Important Reminders
 
-- **Never modify code in `lambda-home/src/home_app/e11/` or `lambda-leaderboard/src/leaderboard_app/e11/`** - these are vendored wheels, not source code
+- **Never modify vendored `e11.whl` artifacts in `lambda-home/src/home_app/` or `lambda-leaderboard/src/leaderboard_app/` directly** - update `e11/` and re-vend through the Makefile
 - **Always re-vend after changing `e11/` or `e11core/`**
 - **Changes to `e11/` or `e11core/` affect both CLI and Lambda functions**
 - **Use DynamoDB Local for testing, never mock DynamoDB operations**
 - **For integration testing, intercept HTTP requests and route to `lambda_handler`**
-

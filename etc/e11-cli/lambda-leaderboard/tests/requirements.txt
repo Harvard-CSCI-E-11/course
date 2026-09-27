@@ -1,4 +1,0 @@
-# requirements.txt for local testing
-pytest
-boto3
-requests

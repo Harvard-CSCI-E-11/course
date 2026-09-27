@@ -1,86 +1,37 @@
-Master list of things to do
-===========================
-- e11admin cli
-  - Runs on staff laptop
-  - Gives staff commands
-  - create a course key for a student and a auto-login URL
+# Course backlog
 
-- e11admin lab1 - gets list of students & attacks
-- e11admin status lab1 - reports how many people have started, completed
-- e11admin status reg - reports all registrations
-- e11admin download reg - downloads registration
-- e11admin download lab1 - downloads grade reports
+Reviewed against the repository on 2026-08-23. Completed and superseded ideas
+from the former scratch list were removed; the items below still need a decision
+or implementation.
 
+## Course operations
 
-many labs:
- - check niinx
- - check dns
+- Add a staff progress report that summarizes registration and started/completed
+  counts per lab. `e11admin class`, `student-report`, `print-grades`, and `status`
+  provide related views, but `status` currently reports grade increases since
+  the last Canvas export rather than overall progress.
+- Decide whether forced/batch grading should skip students who already have a
+  winning or perfect result. The current `force-grade` workflow does not expose
+  that policy.
+- Decide whether the leaderboard needs a user-visible history view. Leaderboard
+  events are recorded, but the current page presents active and inactive players
+  rather than historical results.
 
-- labs 5-8:
-  - makefile target to set up gunicorn & nginx.
-  - e11 command 'e11 hostname lab3' - creates hostname for the lab.
-  - use envsubst to do the environment variable substitutions
-     `envsubst '$SHASHEDEMAIL $LAB' < config.txt > output2.txt` to limit substitutions
-  - have certbot add the TLS certificate
-# 1. Set your new hostname variable
-export NEW_HOSTNAME="store.example.com"
+## Lab installation and grading
 
-# 2. Use envsubst to create the new config file
-envsubst < /path/to/template.conf > /etc/nginx/sites-available/$NEW_HOSTNAME.conf
+- Finish the service and nginx installation targets for labs 4--6. Their
+  `install-lab*-nginx` targets remain placeholders; service installation is
+  present but duplicated across lab Makefiles. Include template substitution,
+  `nginx -t`, reload, and certificate provisioning in the design.
+- Complete the lab 1 attack/progress checks. The grader checks the retained
+  journal, autograder key, and removal of the `hacker` account, but it does not
+  identify the assigned attack or select registered students by current score.
+- Audit the assignment writeups so that each one identifies the files students
+  should modify and explains that linked shared files are not student-owned.
+  The root README now documents the repository-level symlink design.
+- Decide whether maintained reference-solution scripts and an automated
+  end-to-end course rehearsal are desired. If so, define their security boundary
+  and keep them out of student-facing installation paths.
 
-# 3. CRITICAL: Enable the new site by creating a symlink
-sudo ln -s /etc/nginx/sites-available/$NEW_HOSTNAME.conf /etc/nginx/sites-enabled/
-
-# 1. Test your Nginx configuration for any errors
-sudo nginx -t
-
-# 2. If the test is successful, reload Nginx
-sudo systemctl reload nginx
-
-# Example: expanding a cert that already has 'example.com' and 'www.example.com'
-sudo certbot --nginx --expand -d example.com -d www.example.com -d store.example.com
-
-- lab1
-  - answer - the attack we used
-  - modify ssh attacker to attack systems that have been registered but do not have a perfect score.
-
-- lab3
-  - check access key
-
-- lab4
-  - we will set up the gunicorn and nginx
-  - Add comments to each file explaining what it does.
-
-- lab5 tester
-  - web app
-  - dns
-  - api version
-  - api key in db
-  - api key match
-  - upload image works
-  - fetch image works
-
-- lab6:
- - analyze image works
-
-- lab7:
- - Something got posted to the dynamodb
-
-
-- batch grader - do not grade winners
-
-- leadboard:
-- add history to leaderboard
-
-Assignments:
-- indicate which files are modified
-- symlinks indicate file does not need to be changed.
-- add email & coursekey to /leaderboard db & api
-
-
-solutions:
-- Scripts that solve each.
-- Automate full testing.
-
-- go through all healthcheck code from spring25 and integrate it.
-- implement e11 answers and check the answers.
+Detailed `e11` testing and implementation debt is tracked separately in
+[`etc/e11-cli/doc/TODO.md`](etc/e11-cli/doc/TODO.md).

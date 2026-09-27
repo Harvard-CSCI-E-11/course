@@ -3,24 +3,22 @@ Sessions Management
 """
 
 # at top of home_app/home.py (module import time)
-import uuid
 import time
+import uuid
 
-from typing import Optional
-
-from e11.e11core.utils import get_logger
 from e11.e11_common import (
     A,
     EmailNotRegistered,
     Session,
+    add_user_log,
     convert_dynamodb_item,
     create_new_user,
-    sessions_table,
     get_user_from_email,
-    add_user_log
+    sessions_table,
 )
+from e11.e11core.utils import get_logger
 
-from .common import SESSION_TTL_SECS, get_cookie_domain, COOKIE_NAME
+from .common import COOKIE_NAME, SESSION_TTL_SECS, get_cookie_domain
 
 LOGGER = get_logger("home")
 
@@ -42,6 +40,7 @@ def parse_cookies(event) -> dict:
             cookies[k] = v
     return cookies
 
+
 def new_session(event, claims) -> Session:
     """Create a new session from the OIDC claims and store in the DyanmoDB table.
     The esid (email plus session identifier) is {email}:{uuid}
@@ -57,7 +56,9 @@ def new_session(event, claims) -> Session:
     except EmailNotRegistered:
         # User doesn't exist, create new user
         user = create_new_user(email, claims)
-        add_user_log(event, user.user_id, f"User {claims['email']} created", claims=claims)
+        add_user_log(
+            event, user.user_id, f"User {claims['email']} created", claims=claims
+        )
 
     sid = str(uuid.uuid4())
     session = {
@@ -79,7 +80,8 @@ def new_session(event, claims) -> Session:
     add_user_log(event, user.user_id, f"Session {sid} created")
     return Session(**session)
 
-def get_session_from_sid(event, sid) -> Optional[Session]:
+
+def get_session_from_sid(event, sid) -> Session | None:
     LOGGER.debug(
         "get_session_from_sid sid=%s get_cookie_domain(%s)=%s",
         sid,
@@ -113,7 +115,7 @@ def get_session_from_sid(event, sid) -> Optional[Session]:
     return ses
 
 
-def get_session_from_event(event) -> Optional[Session]:
+def get_session_from_event(event) -> Session | None:
     """Return the session dictionary if the session is valid and not expired.
     Sessions are determined by having the session cookie"""
     return get_session_from_sid(event, parse_cookies(event).get(COOKIE_NAME))

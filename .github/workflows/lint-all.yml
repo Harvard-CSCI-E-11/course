@@ -18,23 +18,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
+      - name: Set up Python 3.14
         uses: actions/setup-python@v5
         with:
-          python-version: 3.12
+          python-version: "3.14"
 
-      - name: Set up Python 3.13
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.0.1
         with:
-          python-version: 3.13
-
-      - name: Install pipx and Poetry
-        run: |
-          sudo apt -y update
-          sudo apt -y install python3-venv pipx
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-          pipx install poetry
-          poetry --version
+          version: "0.12.5"
+          enable-cache: true
 
       - name: e11 command tests with coverage
         run: |

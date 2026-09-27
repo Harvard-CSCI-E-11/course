@@ -11,10 +11,9 @@
 export LAB=lab6
 export PORT=8006
 
-PYTHON=.venv/bin/python6
+PYTHON=.venv/bin/python3
 $(PYTHON):
-	poetry config virtualenvs.in-project true
-	poetry install
+	uv sync --locked
 	npm install
 
 #
@@ -34,35 +33,35 @@ install-lab6-nginx:
 # Run the application locally for testing
 # Note: your local machine must be authorized for your AWS account with the `aws` command.
 local-app: $(PYTHON)
-	poetry run flask --app server.main:app run --debug --port 8006 --reload
+	uv run --locked flask --app server.main:app run --debug --port 8006 --reload
 
 # Print help for the application
 help: $(PYTHON)
-	poetry run flask --app server.main:app --help
+	uv run --locked flask --app server.main:app --help
 
 # Create a new database
 init-db: $(PYTHON)
-	@poetry run flask --app server.main:app init-db
+	@uv run --locked flask --app server.main:app init-db
 
 # Wipe the database and start over
 wipe-db: $(PYTHON)
-	poetry run flask --app server.main:app wipe-db
+	uv run --locked flask --app server.main:app wipe-db
 	make init-db
 
 # Generate a new api-key
 new-apikey: $(PYTHON)
-	@poetry run flask --app server.main:app new-apikey
+	@uv run --locked flask --app server.main:app new-apikey
 
 # Dump the database
 dump-db: $(PYTHON)
-	poetry run flask  --app server.main:app dump-db
+	uv run --locked flask --app server.main:app dump-db
 
 #
 # Software engineering targets
 
 lint: $(PYTHON)
-	poetry run pylint server
-	poetry run pyright *.py
+	uv run --locked pylint server
+	uv run --locked pyright *.py
 
 distclean:
 	/bin/rm -rf .venv
@@ -76,4 +75,4 @@ distclean:
 
 # Create the s3 bucket and establish the CORS policy
 init-s3:
-	poetry run flask --app server.main:app init-s3
+	uv run --locked flask --app server.main:app init-s3

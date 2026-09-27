@@ -14,8 +14,8 @@ if [ ! -r /etc/os-release ]; then
 fi
 
 source /etc/os-release
-if [ $VERSION_ID != 24.04 ]; then
-    echo This script can only run on Ubuntu 24.04
+if [ "$VERSION_ID" != 26.04 ]; then
+    echo This script can only run on Ubuntu 26.04
     exit 1
 fi
 
@@ -26,7 +26,7 @@ if [ $FIRST_THREE != 'ec2' ]; then
     exit 1
 fi
 
-echo Setting up Ubuntu 24.04 LTS on EC2 for CSCI E-11
+echo Setting up Ubuntu 26.04 LTS on EC2 for CSCI E-11
 TOKEN=$(curl -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
 METADATA=$(curl -sS -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/dynamic/instance-identity/document)
 if [ "${METADATA}x" = "x" ]; then
@@ -41,10 +41,10 @@ echo AWS Region: $REGION
 echo Setting Ubuntu mirror to $MIRROR
 sudo sed -i "s|http://.*.ubuntu.com/ubuntu/|$MIRROR|g" /etc/apt/sources.list.d/ubuntu.sources
 
-# Install CSCI E-11 pipx, python3, make, npm and emacs
+# Install CSCI E-11 system packages and uv.
 echo Install apt items
 sudo apt -y update
-sudo apt -y install pipx python-is-python3 make npm
+sudo apt -y install curl python-is-python3 make npm
 sudo snap install emacs --classic
 
 # Update PATH at the top of the .bashrc file, before the exit for non-interactive shells.
@@ -52,15 +52,15 @@ grep -q 'export PATH="\$HOME/.local/bin:\$PATH"' ~/.bashrc || \
     sed -i '1s|^|export PATH="$HOME/.local/bin:$PATH"\n|' ~/.bashrc
 
 source $HOME/.bashrc			  # update the PATH
-pipx install poetry                       # downloads and installed in $HOME/.local/bin
-poetry config virtualenvs.in-project true # store local environment in .venv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv --version
 
 
 if [ ! -r $SCRIPT_DIR/e11-cli ]; then
     echo Error: $SCRIPT_DIR/e11-cli not found.
     exit 1
 fi
-(cd $SCRIPT_DIR/e11-cli; pipx install . --force; make man)
+(cd "$SCRIPT_DIR/e11-cli"; uv tool install --force --python 3.14 .; make man)
 
 # Update .bashrc so that it runs e11 version and e11 access on login
 echo "e11 version" >> $HOME/.bashrc

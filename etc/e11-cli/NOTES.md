@@ -3,16 +3,16 @@ Programmer Notes:
 
 Packaging Lessons
 -----------------
-* **IMPORTANT**: Always explicitly define packages in `pyproject.toml` using `packages = [{ include = "e11" }]`.
-  Without this, Poetry will auto-discover packages and may try to include unwanted directories like `.venv`
-  subdirectories (which can contain symlinks to Python executables outside the project root, causing build failures).
-  See: https://python-poetry.org/docs/pyproject/#packages
+* **IMPORTANT**: The e11 package intentionally uses a flat source layout. Its
+  `pyproject.toml` configures `uv_build` with `module-name = "e11"` and
+  `module-root = ""`; do not move it under `src/` merely to satisfy backend
+  defaults.
 
 * aws sam wants you to have your application be a full-blown packaged python application. Follow this layout:
 
 ```
 e11-cli/                        # Contains pyproject.toml
-├── pyproject.toml              # Defines the e11 package (must explicitly list packages!)
+├── pyproject.toml              # Defines the flat-layout e11 package for uv
 ├── e11/                        # The actual package source
 │   ├── __init__.py
 │   ├── e11admin/               # Admin CLI (now part of e11 package, not separate)
@@ -20,7 +20,7 @@ e11-cli/                        # Contains pyproject.toml
 │   └── (other modules)
 └── lambda-home/
     ├── pyproject.toml          # pyproject.toml for the lambda-home app
-    ├── template.yaml           # AWS SAM template file. Note that it uses python3.13 as a BuildMethod, which automatically uses the requirements.txt file
+    ├── template.yaml           # AWS SAM template; python3.14 BuildMethod consumes requirements.txt
     └── Makefile                # Makefile that builds and publishes lambda-home
     └── build/                  # build directory; not archived
     └── src/                    # python source code for lambda-home

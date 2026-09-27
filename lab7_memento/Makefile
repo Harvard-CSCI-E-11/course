@@ -9,16 +9,14 @@ PYTHON=.venv/bin/python3
 install: $(PYTHON)
 
 $(PYTHON):
-	poetry config virtualenvs.in-project true
-	poetry install		# installs the current poetry.lock, do not update
-	poetry install --with dev
+	uv sync --locked
 
 memento-install: $(PYTHON) requirements_cp.txt
-	poetry run circup install -r requirements_cp.txt
+	uv run --locked circup install -r requirements_cp.txt
 
 lint: $(PYTHON)
-	poetry run pylint *.py
-	poetry run pyright *.py
+	uv run --locked pylint *.py
+	uv run --locked pyright *.py
 
 distclean:
 	/bin/rm -rf .venv

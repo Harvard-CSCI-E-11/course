@@ -1,6 +1,6 @@
 # e11/Makefile
 #
-# The e11 module runs on both the student machine (python3.12) and on the Lambda (python3.13)
+# The e11 module runs on Python 3.14 on student machines and AWS Lambda.
 
 # DynamoDB local stuff (see end)
 DYNAMODB_LOCAL_ENDPOINT=http://localhost:8000/
@@ -8,18 +8,14 @@ E11_VARS := AWS_ENDPOINT_URL_DYNAMODB=$(DYNAMODB_LOCAL_ENDPOINT)
 REQ      := bin/DynamoDBLocal.jar
 
 
-PYTHON = python3.12
-
 .PHONY: pytest lint clean check test man
 
 .venv/pyvenv.cfg: pyproject.toml Makefile
-	poetry config virtualenvs.in-project true
-	poetry install		# installs the current poetry.lock, do not update
-	poetry install --with dev
+	uv sync --locked
 
 lint: .venv/pyvenv.cfg
-	poetry run pylint e11
-	poetry run pyright e11
+	uv run --locked pylint e11
+	uv run --locked pyright e11
 
 lint-all:
 	make lint
@@ -28,7 +24,7 @@ lint-all:
 
 check: .venv/pyvenv.cfg
 	make lint
-	poetry run pytest  -q --cov=e11 --cov-report=term --cov-report=xml --junitxml=junit.xml -o junit_family=legacy tests/
+	uv run --locked pytest -q --cov=e11 --cov-report=term --cov-report=xml --junitxml=junit.xml -o junit_family=legacy tests/
 
 check-all:
 	make check
@@ -41,7 +37,7 @@ prod-all:
 
 
 doc/e11.1:  .venv/pyvenv.cfg
-	poetry run argparse-manpage --module e11.main --function get_parser \
+	uv run --locked argparse-manpage --module e11.main --function get_parser \
 		--author "Simson L. Garfinkel" \
 		--project-name e11 \
 		--url https://github.com/Harvard-CSCI-E-11/spring26.git > doc/e11.1
@@ -61,14 +57,8 @@ distclean:
 	make clean
 	/bin/rm -rf .venv
 
-# pipx needs an explicit interpreter; use $(shell …) (not $(command …), which is not shell in Make).
-PYTHON_FOR_PIPX := $(shell command -v python3.14 || command -v python3.13 || command -v python3.12 || command -v python3)
 install:
-	@if [ -z "$(PYTHON_FOR_PIPX)" ]; then \
-		echo "Error: No suitable Python interpreter found for pipx (tried python3.14, python3.13, python3.12, python3)."; \
-		exit 1; \
-	fi
-	pipx install --force --python "$(PYTHON_FOR_PIPX)" .
+	uv tool install --force --python 3.14 .
 
 
 tags:

@@ -40,7 +40,7 @@ def test_lambda_handler_imports():
     import home_app.home  # pylint: disable=import-outside-toplevel
 
     # Verify the lambda_handler function exists
-    assert hasattr(home_app.home, 'lambda_handler')
+    assert hasattr(home_app.home, "lambda_handler")
     assert callable(home_app.home.lambda_handler)
 
 
@@ -55,11 +55,13 @@ def test_grader_imports_s3_bucket_correctly():
 
     # Import grader module - this will fail if S3_BUCKET import is broken
     from e11.e11core import grader  # pylint: disable=import-outside-toplevel
+
     assert grader is not None
 
     # Verify that constants module doesn't have S3_BUCKET (it shouldn't)
     from e11.e11core import constants  # pylint: disable=import-outside-toplevel
-    assert not hasattr(constants, 'S3_BUCKET'), (
+
+    assert not hasattr(constants, "S3_BUCKET"), (
         "S3_BUCKET should not be in e11.e11core.constants. "
         "It should be imported from e11.e11_common in grader.py"
     )
@@ -67,7 +69,7 @@ def test_grader_imports_s3_bucket_correctly():
     # Verify that e11_common has S3_BUCKET and compare to the constant
     import e11.e11_common as e11_common_module  # pylint: disable=import-outside-toplevel
     from e11.e11_common import S3_BUCKET  # pylint: disable=import-outside-toplevel
+
     # Compare imported value to the constant from the module (avoiding hard-coded strings)
     assert S3_BUCKET is not None
     assert S3_BUCKET == e11_common_module.S3_BUCKET
-

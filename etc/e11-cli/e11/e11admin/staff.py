@@ -24,12 +24,15 @@ from botocore.exceptions import ClientError
 
 from e11.e11core.e11ssh import E11Ssh
 from e11.e11core.grader import print_summary
-from e11.e11core.utils import smash_email
+from e11.e11core.utils import smash_email,get_logger
 from e11.e11core.constants import COURSE_DOMAIN
 from e11.e11_common import (dynamodb_client,dynamodb_resource,A,create_new_user,users_table,add_user_log,
                             add_admin_log,
-                            get_user_from_email,queryscan_table,generate_direct_login_url,EmailNotRegistered,
+                            get_user_from_email,get_user_from_user_id,queryscan_table,generate_direct_login_url,EmailNotRegistered,
                             select_highest_grade_records)
+from e11.e11admin.student_selector import print_student_header, student_user
+
+logger = get_logger()
 
 def enabled():
     return os.getenv('E11_STAFF','0')[0:1].upper() in ['Y','T','1']
@@ -46,6 +49,9 @@ def do_check_access(args):
             print("err:\n",err)
 
 def do_register_email(args):
+    if not args.email:
+        print("Specify --email or a positional email address.", file=sys.stderr)
+        sys.exit(2)
     print("Lab instructions are at https://github.com/Harvard-CSCI-E-11/spring26")
     try:
         user = get_user_from_email(args.email)
@@ -66,9 +72,9 @@ def do_register_email(args):
 
 def do_edit_email(args):
     try:
-        user = get_user_from_email(args.email)
+        user = student_user(args)
     except EmailNotRegistered:
-        print(f"Email {args.email} is not registered")
+        print(f"Student {getattr(args, 'email', None) or getattr(args, 'user_id', None)} is not registered")
         sys.exit(1)
     if args.alt:
         users_table.update_item( Key={ 'user_id': user.user_id,
@@ -81,8 +87,6 @@ def do_edit_email(args):
                                        'sk': '#'},
                                  UpdateExpression="REMOVE alt_email")
         add_user_log( None, user.user_id, "User alt_email removed")
-
-
 ################################################################
 ###
 def _dump_table_items(table_name, user_id):
@@ -134,7 +138,10 @@ def do_student_report(args):
     print(f"Current AWS Profile: {current_profile}\n")
 
     response = dynamodb_client.list_tables()
-    user_id = get_user_from_email(args.email)['user_id'] if args.email else None
+    user = student_user(args) if getattr(args, "email", None) or getattr(args, "user_id", None) else None
+    user_id = user.user_id if user else None
+    if user:
+        print_student_header(user)
 
     print("DynamoDB Tables:")
     for table_name in response['TableNames']:
@@ -149,7 +156,7 @@ def do_student_report(args):
     table = dynamodb_resource.Table('e11-users')
     kwargs = {
         'FilterExpression': Attr(A.SK).eq(A.SK_USER),
-        'ProjectionExpression': 'user_registered, email, preferred_name, claims'
+        'ProjectionExpression': 'user_id, user_registered, email, preferred_name, claims'
     }
 
     # Get all of the registration records
@@ -165,8 +172,8 @@ def do_student_report(args):
         response = table.scan(**kwargs)
         items.extend(response['Items'])
 
-    if args.email:
-        items = [item for item in items if item['email'] == args.email]
+    if user_id:
+        items = [item for item in items if item[A.USER_ID] == user_id]
 
     pitems = []
     for item in items:
@@ -177,7 +184,6 @@ def do_student_report(args):
     def sortkey(a):
         return a.get('Name', '') + "~" + a.get('Email', '')
     print(tabulate(sorted(pitems, key=sortkey), headers='keys'))
-
 @functools.lru_cache(maxsize=2)
 def get_class_list() -> List[Dict[str, Any]]:
     """Get the entire class list. Requires a scan."""
@@ -196,8 +202,19 @@ def userid_to_email(user_id):
 ################################################################
 ## Compute, Print and upload student grades
 
-def get_items(whowhat):
+def get_items(whowhat=None, *, user_id=None):
     """Return either the grades for a lab or a person. Returns all, not just the highest"""
+    if user_id:
+        user = get_user_from_user_id(user_id)
+        for (k,v) in sorted(dict(user).items()):
+            print(f"{k}:{v}")
+        kwargs:dict = {'KeyConditionExpression' : (
+            Key(A.USER_ID).eq(user.user_id) &
+            Key(A.SK).begins_with(A.SK_GRADE_PREFIX)
+        )}
+        return queryscan_table(users_table.query, kwargs)
+
+    assert whowhat is not None
     if whowhat.startswith("lab"):
         kwargs:dict = {
             'FilterExpression' : ( Key(A.SK).begins_with(f'{A.SK_GRADE_PREFIX}{whowhat}#') ),
@@ -247,10 +264,11 @@ def print_grades(items, args):
     print("Total:",len(all_grades))
 
 def do_print_grades(args):
-    items = get_items(args.whowhat)
+    if not args.whowhat and not args.user_id:
+        print("Specify a lab, email address, or --user-id.", file=sys.stderr)
+        sys.exit(2)
+    items = get_items(args.whowhat, user_id=args.user_id)
     print_grades(items, args)
-
-
 def _lab_sort_key(lab: str) -> tuple[int, str]:
     try:
         return (int(lab.replace("lab", "")), lab)
@@ -294,17 +312,6 @@ def _safe_load_grade_summary(item: Dict[str, Any]) -> Dict[str, Any] | None:
     except json.JSONDecodeError:
         return None
     return summary if isinstance(summary, dict) else None
-
-
-def _user_grade_items(email: str) -> List[Dict[str, Any]]:
-    user = get_user_from_email(email)
-    kwargs: dict[str, Any] = {
-        "KeyConditionExpression": (
-            Key(A.USER_ID).eq(user.user_id) &
-            Key(A.SK).begins_with(A.SK_GRADE_PREFIX)
-        )
-    }
-    return queryscan_table(users_table.query, kwargs)
 
 
 def _user_all_items(user_id: str) -> List[Dict[str, Any]]:
@@ -522,7 +529,8 @@ def _print_lab_attempts(lab: str, items: List[Dict[str, Any]], verbose: bool, sh
 
 
 def do_student_log(args):
-    user = get_user_from_email(args.email)
+    user = student_user(args)
+    print_student_header(user)
     all_items = _user_all_items(user.user_id)
     _print_primary_dns(user)
     _print_lifecycle_events(all_items, args.msec)
@@ -534,7 +542,7 @@ def do_student_log(args):
         items = [item for item in items if item.get(A.LAB) == args.lab]
         items.sort(key=_grade_timestamp)
         if not items:
-            print(f"No grading sessions found for {args.email} {args.lab}")
+            print(f"No grading sessions found for {user.email} {args.lab}")
             return
         _print_lab_attempts(args.lab, items, args.verbose, args.msec)
         return
@@ -545,7 +553,7 @@ def do_student_log(args):
         by_lab.setdefault(lab, []).append(item)
 
     if not by_lab:
-        print(f"No grading sessions found for {args.email}")
+        print(f"No grading sessions found for {user.email}")
         return
 
     rows = []
@@ -575,8 +583,6 @@ def _admin_log_items() -> List[Dict[str, Any]]:
         ),
     }
     return queryscan_table(users_table.query, kwargs)
-
-
 def _latest_canvas_grade_exports() -> Dict[str, Dict[str, Any]]:
     exports: Dict[str, Dict[str, Any]] = {}
     for item in _admin_log_items():
@@ -589,8 +595,6 @@ def _latest_canvas_grade_exports() -> Dict[str, Dict[str, Any]]:
         if current is None or _item_timestamp(item) > _item_timestamp(current):
             exports[lab] = item
     return exports
-
-
 def _highest_grade_by_user(items: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
     return {str(item[A.USER_ID]): item for item in get_highest_grades(items)}
 
@@ -734,11 +738,23 @@ Required columns and order
     def _normalize_spaces(value):
         return " ".join(value.lower().strip().split())
 
-    def _strip_middle_initial(name):
+    def _strip_middle_name(name):
         parts = name.split()
-        if len(parts) == 3 and len(parts[1].rstrip(".")) == 1:
-            return f"{parts[0]} {parts[2]}"
+        if len(parts) >= 3:
+            return f"{parts[0]} {parts[-1]}"
         return None
+
+    def _template_name_candidates(name):
+        parts = name.lower().split(", ", 1)
+        if len(parts) != 2:
+            return {_normalize_spaces(name)}
+        last, first = parts
+        candidates = set()
+        for first_variant in (first, _strip_middle_name(first)):
+            if not first_variant:
+                continue
+            candidates.add(_normalize_spaces(f"{first_variant} {last}"))
+        return candidates
 
     def _candidate_names(item):
         candidates = set()
@@ -748,16 +764,15 @@ Required columns and order
                 continue
             normalized = _normalize_spaces(candidate)
             candidates.add(normalized)
-            stripped = _strip_middle_initial(normalized)
+            stripped = _strip_middle_name(normalized)
             if stripped:
                 candidates.add(stripped)
         return candidates
 
     def exact_match(name):
-        (last,first) = name.lower().split(", ")
-        lower_name = _normalize_spaces(first + " " + last)
+        template_candidates = _template_name_candidates(name)
         for item in class_list.values():
-            if lower_name in _candidate_names(item):
+            if template_candidates & _candidate_names(item):
                 return item
         return None
 
@@ -766,13 +781,11 @@ Required columns and order
     for name in template_names:
         em = exact_match(name[0])
         if em:
-            try:
-                grade = em[A.SCORE]
-                output_names_and_grades.append( name[0:5] + [grade])
-            except KeyError:
-                print("No grade for",name)
+            grade = em.get(A.SCORE, _format_score(Decimal(0)))
+            output_names_and_grades.append(name[0:5] + [grade])
             del class_list[em[A.USER_ID]]
         else:
+            output_names_and_grades.append(name[0:5] + [_format_score(Decimal(0))])
             unmatched_names.append(name)
 
     # debug
@@ -780,15 +793,14 @@ Required columns and order
     for row in output_names_and_grades:
         print(row)
     print("Total grades:",len(output_names_and_grades)-1,"\n")
-    print("unmatched grades:")
-    unmatched = []
+    print("unmatched grades with claims:")
     for item in class_list.values():
-        if A.SCORE in item:
-            print(item)
-            unmatched.append(item)
-    if len(unmatched) > 0:
-        print("Unmatched.  Will not continued")
-        sys.exit(1)
+        if A.SCORE in item and A.CLAIMS in item:
+            print(item.get('preferred_name'),item.get('email'))
+    if unmatched_names:
+        print("Template students without registered instances:")
+        for name in unmatched_names:
+            print(name[0])
 
     print("Generating output")
     with args.outfile.open("w") as f:
@@ -802,6 +814,7 @@ Required columns and order
         template=str(args.template),
         outfile=str(args.outfile),
         exported_count=len(output_names_and_grades) - 1,
+        unmatched_count=len(unmatched_names),
     )
 
 
@@ -814,7 +827,7 @@ def find_queue(substr, stage=False):
     sqs = boto3.client('sqs')
     r = sqs.list_queues()
     for q in r['QueueUrls']:
-        print("queue:",q)
+        logger.debug("queue: %s",q)
         if stage and "stage" not in q:
             continue
         if substr in q:
@@ -827,7 +840,7 @@ def find_secret(substr):
     r = secrets_manager.list_secrets()
     for s in r['SecretList']:
         name = s.get('Name','')
-        print("secret:",name)
+        logger.debug("secret: %s",name)
         if substr in name:
             return name
     raise RuntimeError(f"Secret with substring {substr} not found")
@@ -846,8 +859,6 @@ def force_grades(args):
     (home,_) = update_path()
     queue_name  = find_queue('home-queue', stage=args.stage)
     secret_name = find_secret("sqs-auth-secret")
-    print("sending message to",queue_name)
-    print("using secret",secret_name)
     os.environ['SQS_QUEUE_URL'] = queue_name
     os.environ['SQS_SECRET_ID'] = secret_name
     message = f"Grading was manually queued by {args.who}"
@@ -865,32 +876,55 @@ def force_grades(args):
             email = userid_to_email(i['user_id'])
             score = Decimal(i['score'])
             high_grades[email] = max(high_grades.get(email,0), score)
-        print("These students have a 5.0:")
         count = 0
         for (email,score) in high_grades.items():
             if score==5.0:
-                print(email,score)
+                logger.debug("5.0 student %s=%s",email,score)
                 count += 1
-        print("Count:",count)
-        print()
-        print("These students have less than a 5.0 and will receive a forced grading:")
         count = 0
         for (email,score) in high_grades.items():
             if score<5.0:
-                print(email,score)
+                logger.debug("Will regrade: %s (%s)",email,score)
                 home.queue_grade(email, args.lab, message)
                 count += 1
-        print("Count:",count)
+        logger.info("Students to regrade: %s",count)
         sys.exit(0)
 
-    home.queue_grade(args.email,args.lab, message)
+    user = student_user(args)
+    home.queue_grade(user.email,args.lab, message)
+
+def _run_interactive_ssh(cmd, env):
+    """Run an interactive SSH session and tear it down on local Ctrl-C."""
+    try:
+        proc = subprocess.Popen(cmd, env=env)  # pylint: disable=consider-using-with
+    except FileNotFoundError:
+        print("Error: ssh not found. Please ensure OpenSSH is installed.")
+        return 1
+
+    try:
+        return proc.wait()
+    except KeyboardInterrupt:
+        print("\nDisconnecting SSH session.")
+        try:
+            proc.terminate()
+        except ProcessLookupError:
+            pass
+        try:
+            return proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            try:
+                proc.kill()
+            except ProcessLookupError:
+                pass
+            return proc.wait()
 
 def ssh_access(args):
     (_,api) = update_path()
+    user = student_user(args)
 
     os.environ['SSH_SECRET_ID'] = find_secret("ssh")
     pem_key = api.get_pkey_pem("cscie-bot")
-    smashed_email = smash_email(args.email)
+    smashed_email = smash_email(user.email)
     hostname = f"{smashed_email}.csci-e-11.org"
 
     # Start ssh-agent and get its environment variables
@@ -938,13 +972,12 @@ def ssh_access(args):
         print(f"Connecting to ubuntu@{hostname}")
 
         # Run ssh with the agent environment (allows interactive terminal use)
-        ssh_proc = subprocess.run(
+        ssh_rc = _run_interactive_ssh(
             ['ssh', '-o', 'IdentitiesOnly=no', f'ubuntu@{hostname}'],
             env={**os.environ, **agent_env},
-            check=False
         )
 
-        sys.exit(ssh_proc.returncode)
+        sys.exit(ssh_rc)
 
     finally:
         # Clean up: kill the ssh-agent

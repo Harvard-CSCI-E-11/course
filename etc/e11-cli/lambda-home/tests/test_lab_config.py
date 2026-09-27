@@ -13,14 +13,14 @@ We use DynamoDB Local for testing, NOT monkeypatching for DynamoDB operations.
 
 import json
 from datetime import datetime, timedelta
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 from zoneinfo import ZoneInfo
 
 import pytest
-
 from e11.e11_common import LAB_CONFIG, LAB_REDIRECTS
-from home_app import api, home
 from e11.e11core.constants import HTTP_FORBIDDEN, HTTP_OK
+
+from home_app import api, home
 
 
 def test_lab_config_structure():
@@ -34,13 +34,19 @@ def test_lab_config_structure():
 
         assert "redirect" in lab_config, f"{lab_key} missing 'redirect'"
         assert "deadline" in lab_config, f"{lab_key} missing 'deadline'"
-        assert isinstance(lab_config["redirect"], str), f"{lab_key}.redirect should be a string"
-        assert lab_config["redirect"].startswith("http"), f"{lab_key}.redirect should be a valid URL"
+        assert isinstance(lab_config["redirect"], str), (
+            f"{lab_key}.redirect should be a string"
+        )
+        assert lab_config["redirect"].startswith("http"), (
+            f"{lab_key}.redirect should be a valid URL"
+        )
 
         # Verify deadline is valid ISO-8601 format (no timezone, Eastern time)
         deadline_str = lab_config["deadline"]
         deadline = datetime.fromisoformat(deadline_str)
-        assert deadline.tzinfo is None, f"{lab_key}.deadline should not have timezone (assumed Eastern)"
+        assert deadline.tzinfo is None, (
+            f"{lab_key}.deadline should not have timezone (assumed Eastern)"
+        )
 
 
 def test_lab_config_backward_compatibility():
@@ -49,8 +55,9 @@ def test_lab_config_backward_compatibility():
 
     for lab_num in range(9):
         assert lab_num in LAB_REDIRECTS, f"LAB_REDIRECTS missing lab {lab_num}"
-        assert LAB_REDIRECTS[lab_num] == LAB_CONFIG[f"lab{lab_num}"]["redirect"], \
+        assert LAB_REDIRECTS[lab_num] == LAB_CONFIG[f"lab{lab_num}"]["redirect"], (
             f"LAB_REDIRECTS[{lab_num}] should match LAB_CONFIG['lab{lab_num}']['redirect']"
+        )
 
 
 def test_lab_redirects_still_work():
@@ -59,9 +66,9 @@ def test_lab_redirects_still_work():
     event = {
         "requestContext": {
             "http": {"method": "GET", "sourceIp": "1.2.3.4"},
-            "stage": "test"
+            "stage": "test",
         },
-        "rawPath": "/lab0"
+        "rawPath": "/lab0",
     }
 
     response = home.lambda_handler(event, None)
@@ -72,18 +79,22 @@ def test_lab_redirects_still_work():
 @pytest.mark.parametrize("lab_key", ["lab0", "lab1", "lab2"])
 def test_api_grader_before_deadline(lab_key, monkeypatch, fake_aws):
     """Test that api_grader accepts requests before deadline."""
-    import uuid
     import time
-    from e11.e11_common import create_new_user, A, users_table
+    import uuid
+
+    from e11.e11_common import A, create_new_user, users_table
     from e11.e11core.utils import smash_email
 
     # Create test user with unique email
 
     test_email = f"test-{lab_key}-{uuid.uuid4().hex[:8]}@example.com"
-    user = create_new_user(test_email, {
-        "email": test_email,
-        "preferred_name": "Test User",
-    })
+    user = create_new_user(
+        test_email,
+        {
+            "email": test_email,
+            "preferred_name": "Test User",
+        },
+    )
     # Register the instance by setting public_ip on the user record
     users_table.update_item(
         Key={"user_id": user[A.USER_ID], "sk": user[A.SK]},
@@ -92,7 +103,7 @@ def test_api_grader_before_deadline(lab_key, monkeypatch, fake_aws):
             ":ip": "1.2.3.4",
             ":hn": smash_email(test_email),
             ":t": int(time.time()),
-        }
+        },
     )
 
     # Mock the grader to avoid actual SSH calls
@@ -103,60 +114,68 @@ def test_api_grader_before_deadline(lab_key, monkeypatch, fake_aws):
         "tests": [{"name": "test1", "passed": True, "message": "OK"}],
         "score": 100.0,
         "error": False,
-        "ctx": {"email": test_email, "public_ip": "1.2.3.4", "lab": lab_key}
+        "ctx": {"email": test_email, "public_ip": "1.2.3.4", "lab": lab_key},
     }
 
     # Mock secrets manager for SSH key (needs to be JSON with 'cscie-bot' key)
     mock_secrets = MagicMock()
-    mock_secrets.get_secret_value.return_value = {"SecretString": json.dumps({"cscie-bot": "fake-ssh-key"})}
+    mock_secrets.get_secret_value.return_value = {
+        "SecretString": json.dumps({"cscie-bot": "fake-ssh-key"})
+    }
     monkeypatch.setattr("home_app.api.secretsmanager_client", mock_secrets)
 
-    with patch("home_app.api.grader.grade_student_vm", return_value=mock_summary):
-        with patch("home_app.api.send_email2"):
-            # Set current time to before deadline
-            # Deadline is in Eastern time (no timezone in string)
-            from zoneinfo import ZoneInfo
-            eastern_tz = ZoneInfo("America/New_York")
-            deadline_str = LAB_CONFIG[lab_key]["deadline"]
-            deadline = datetime.fromisoformat(deadline_str).replace(tzinfo=eastern_tz)
-            before_deadline = deadline - timedelta(days=1)
+    with (
+        patch("home_app.api.grader.grade_student_vm", return_value=mock_summary),
+        patch("home_app.api.send_email2"),
+    ):
+        # Set current time to before deadline
+        # Deadline is in Eastern time (no timezone in string)
+        from zoneinfo import ZoneInfo
 
-            with patch("home_app.api.datetime") as mock_dt:
-                mock_dt.fromisoformat = datetime.fromisoformat
-                mock_dt.now.return_value = before_deadline
-                # Patch LAB_TIMEZONE to use our test timezone
-                with patch("home_app.api.LAB_TIMEZONE", eastern_tz):
-                    event = {
-                        "requestContext": {"http": {"method": "POST", "sourceIp": "1.2.3.4"}},
-                        "source": "api"  # Not from SQS
-                    }
-                    payload = {
-                        "auth": {
-                            "email": test_email,
-                            "course_key": user[A.COURSE_KEY]
-                        },
-                        "lab": lab_key
-                    }
+        eastern_tz = ZoneInfo("America/New_York")
+        deadline_str = LAB_CONFIG[lab_key]["deadline"]
+        deadline = datetime.fromisoformat(deadline_str).replace(tzinfo=eastern_tz)
+        before_deadline = deadline - timedelta(days=1)
 
-                    response = api.api_grader(event, None, payload)
-                    assert response["statusCode"] == HTTP_OK
+        with patch("home_app.api.datetime") as mock_dt:
+            mock_dt.fromisoformat = datetime.fromisoformat
+            mock_dt.now.return_value = before_deadline
+            # Patch LAB_TIMEZONE to use our test timezone
+            with patch("home_app.api.LAB_TIMEZONE", eastern_tz):
+                event = {
+                    "requestContext": {
+                        "http": {"method": "POST", "sourceIp": "1.2.3.4"}
+                    },
+                    "source": "api",  # Not from SQS
+                }
+                payload = {
+                    "auth": {"email": test_email, "course_key": user[A.COURSE_KEY]},
+                    "lab": lab_key,
+                }
+
+                response = api.api_grader(event, None, payload)
+                assert response["statusCode"] == HTTP_OK
 
 
 @pytest.mark.parametrize("lab_key", ["lab0", "lab1", "lab2"])
 def test_api_grader_after_deadline_rejects(lab_key, monkeypatch, fake_aws):
     """Test that api_grader rejects requests after deadline (non-SQS)."""
-    import uuid
     import time
-    from e11.e11_common import create_new_user, A, users_table
+    import uuid
+
+    from e11.e11_common import A, create_new_user, users_table
     from e11.e11core.utils import smash_email
 
     # Create test user with unique email
 
     test_email = f"test-{lab_key}-{uuid.uuid4().hex[:8]}@example.com"
-    user = create_new_user(test_email, {
-        "email": test_email,
-        "preferred_name": "Test User",
-    })
+    user = create_new_user(
+        test_email,
+        {
+            "email": test_email,
+            "preferred_name": "Test User",
+        },
+    )
     # Register the instance by setting public_ip on the user record
     users_table.update_item(
         Key={"user_id": user[A.USER_ID], "sk": user[A.SK]},
@@ -165,7 +184,7 @@ def test_api_grader_after_deadline_rejects(lab_key, monkeypatch, fake_aws):
             ":ip": "1.2.3.4",
             ":hn": smash_email(test_email),
             ":t": int(time.time()),
-        }
+        },
     )
 
     # Set current time to after deadline
@@ -182,14 +201,11 @@ def test_api_grader_after_deadline_rejects(lab_key, monkeypatch, fake_aws):
         with patch("home_app.api.LAB_TIMEZONE", eastern_tz):
             event = {
                 "requestContext": {"http": {"method": "POST", "sourceIp": "1.2.3.4"}},
-                "source": "api"  # Not from SQS
+                "source": "api",  # Not from SQS
             }
             payload = {
-                "auth": {
-                    "email": test_email,
-                    "course_key": user[A.COURSE_KEY]
-                },
-                "lab": lab_key
+                "auth": {"email": test_email, "course_key": user[A.COURSE_KEY]},
+                "lab": lab_key,
             }
 
             response = api.api_grader(event, None, payload)
@@ -201,17 +217,21 @@ def test_api_grader_after_deadline_rejects(lab_key, monkeypatch, fake_aws):
 
 def test_api_grader_sqs_bypasses_deadline(monkeypatch, fake_aws):
     """Test that SQS requests bypass deadline checks."""
-    import uuid
     import time
-    from e11.e11_common import create_new_user, A, users_table
+    import uuid
+
+    from e11.e11_common import A, create_new_user, users_table
     from e11.e11core.utils import smash_email
 
     # Create test user with unique email
     test_email = f"test-sqs-{uuid.uuid4().hex[:8]}@example.com"
-    user = create_new_user(test_email, {
-        "email": test_email,
-        "preferred_name": "Test User",
-    })
+    user = create_new_user(
+        test_email,
+        {
+            "email": test_email,
+            "preferred_name": "Test User",
+        },
+    )
     # Register the instance by setting public_ip on the user record
     users_table.update_item(
         Key={"user_id": user[A.USER_ID], "sk": user[A.SK]},
@@ -220,7 +240,7 @@ def test_api_grader_sqs_bypasses_deadline(monkeypatch, fake_aws):
             ":ip": "1.2.3.4",
             ":hn": smash_email(test_email),
             ":t": int(time.time()),
-        }
+        },
     )
 
     # Mock the grader
@@ -231,44 +251,48 @@ def test_api_grader_sqs_bypasses_deadline(monkeypatch, fake_aws):
         "tests": [{"name": "test1", "passed": True, "message": "OK"}],
         "score": 100.0,
         "error": False,
-        "ctx": {"email": test_email, "public_ip": "1.2.3.4", "lab": "lab0"}
+        "ctx": {"email": test_email, "public_ip": "1.2.3.4", "lab": "lab0"},
     }
 
     # Mock secrets manager for SSH key (needs to be JSON with 'cscie-bot' key)
     mock_secrets = MagicMock()
-    mock_secrets.get_secret_value.return_value = {"SecretString": json.dumps({"cscie-bot": "fake-ssh-key"})}
+    mock_secrets.get_secret_value.return_value = {
+        "SecretString": json.dumps({"cscie-bot": "fake-ssh-key"})
+    }
     monkeypatch.setattr("home_app.api.secretsmanager_client", mock_secrets)
 
-    with patch("home_app.api.grader.grade_student_vm", return_value=mock_summary):
-        with patch("home_app.api.send_email2"):
-            # Set current time to after deadline
-            # Deadline is in Eastern time (no timezone in string)
-            from zoneinfo import ZoneInfo
-            eastern_tz = ZoneInfo("America/New_York")
-            deadline_str = LAB_CONFIG["lab0"]["deadline"]
-            deadline = datetime.fromisoformat(deadline_str).replace(tzinfo=eastern_tz)
-            after_deadline = deadline + timedelta(days=1)
+    with (
+        patch("home_app.api.grader.grade_student_vm", return_value=mock_summary),
+        patch("home_app.api.send_email2"),
+    ):
+        # Set current time to after deadline
+        # Deadline is in Eastern time (no timezone in string)
+        from zoneinfo import ZoneInfo
 
-            with patch("home_app.api.datetime") as mock_dt:
-                mock_dt.fromisoformat = datetime.fromisoformat
-                mock_dt.now.return_value = after_deadline
-                # Patch LAB_TIMEZONE to use our test timezone
-                with patch("home_app.api.LAB_TIMEZONE", eastern_tz):
-                    # SQS request should bypass deadline
-                    event = {
-                        "requestContext": {"http": {"method": "POST", "sourceIp": "test-sender"}},
-                        "source": "sqs"  # From SQS - should bypass deadline
-                    }
-                    payload = {
-                        "auth": {
-                            "email": test_email,
-                            "course_key": user[A.COURSE_KEY]
-                        },
-                        "lab": "lab0"
-                    }
+        eastern_tz = ZoneInfo("America/New_York")
+        deadline_str = LAB_CONFIG["lab0"]["deadline"]
+        deadline = datetime.fromisoformat(deadline_str).replace(tzinfo=eastern_tz)
+        after_deadline = deadline + timedelta(days=1)
 
-                    response = api.api_grader(event, None, payload)
-                    assert response["statusCode"] == HTTP_OK
+        with patch("home_app.api.datetime") as mock_dt:
+            mock_dt.fromisoformat = datetime.fromisoformat
+            mock_dt.now.return_value = after_deadline
+            # Patch LAB_TIMEZONE to use our test timezone
+            with patch("home_app.api.LAB_TIMEZONE", eastern_tz):
+                # SQS request should bypass deadline
+                event = {
+                    "requestContext": {
+                        "http": {"method": "POST", "sourceIp": "test-sender"}
+                    },
+                    "source": "sqs",  # From SQS - should bypass deadline
+                }
+                payload = {
+                    "auth": {"email": test_email, "course_key": user[A.COURSE_KEY]},
+                    "lab": "lab0",
+                }
+
+                response = api.api_grader(event, None, payload)
+                assert response["statusCode"] == HTTP_OK
 
 
 def test_do_dashboard_computes_next_lab(monkeypatch, fake_aws, dynamodb_local):
@@ -280,20 +304,23 @@ def test_do_dashboard_computes_next_lab(monkeypatch, fake_aws, dynamodb_local):
     to return empty items for logs/grades/images (to simplify the test), but the
     session query uses the real DynamoDB Local table.
     """
-    import uuid
-    from e11.e11_common import create_new_user
-    from home_app.sessions import new_session
-
     # Create test user - this puts the user record in DynamoDB Local
     import time
+    import uuid
+
+    from e11.e11_common import A, create_new_user, users_table
     from e11.e11core.utils import smash_email
-    from e11.e11_common import users_table, A
+
+    from home_app.sessions import new_session
 
     test_email = f"test-{uuid.uuid4().hex[:8]}@example.com"
-    user = create_new_user(test_email, {
-        "email": test_email,
-        "preferred_name": "Test User",
-    })
+    user = create_new_user(
+        test_email,
+        {
+            "email": test_email,
+            "preferred_name": "Test User",
+        },
+    )
     # Register the instance by setting public_ip on the user record
     users_table.update_item(
         Key={"user_id": user[A.USER_ID], "sk": user[A.SK]},
@@ -302,26 +329,27 @@ def test_do_dashboard_computes_next_lab(monkeypatch, fake_aws, dynamodb_local):
             ":ip": "1.2.3.4",
             ":hn": smash_email(test_email),
             ":t": int(time.time()),
-        }
+        },
     )
 
     # Create a session using new_session - this goes into DynamoDB Local
-    event_for_session = {
-        "requestContext": {"http": {"sourceIp": "1.2.3.4"}}
-    }
-    ses = new_session(event_for_session, {"email": test_email, "preferred_name": "Test User"})
+    event_for_session = {"requestContext": {"http": {"sourceIp": "1.2.3.4"}}}
+    ses = new_session(
+        event_for_session, {"email": test_email, "preferred_name": "Test User"}
+    )
 
     event = {
         "requestContext": {
             "http": {"method": "GET", "sourceIp": "1.2.3.4"},
-            "stage": "test"
+            "stage": "test",
         },
         "rawPath": "/dashboard",
-        "cookies": [f"AuthSid={ses.sid}"]
+        "cookies": [f"AuthSid={ses.sid}"],
     }
 
     # Mock time to be before lab0 deadline
     from e11.e11_common import LAB_TIMEZONE
+
     test_time = datetime(2026, 1, 15, 12, 0, 0, tzinfo=LAB_TIMEZONE)  # Before lab0
 
     with patch("home_app.home.datetime") as mock_dt:
@@ -357,20 +385,23 @@ def test_do_dashboard_no_next_lab_when_all_past(monkeypatch, fake_aws, dynamodb_
     to return empty items for logs/grades/images (to simplify the test), but the
     session query uses the real DynamoDB Local table.
     """
-    import uuid
-    from e11.e11_common import create_new_user
-    from home_app.sessions import new_session
-
     # Create test user - this puts the user record in DynamoDB Local
     import time
+    import uuid
+
+    from e11.e11_common import A, create_new_user, users_table
     from e11.e11core.utils import smash_email
-    from e11.e11_common import users_table, A
+
+    from home_app.sessions import new_session
 
     test_email = f"test-{uuid.uuid4().hex[:8]}@example.com"
-    user = create_new_user(test_email, {
-        "email": test_email,
-        "preferred_name": "Test User",
-    })
+    user = create_new_user(
+        test_email,
+        {
+            "email": test_email,
+            "preferred_name": "Test User",
+        },
+    )
     # Register the instance by setting public_ip on the user record
     users_table.update_item(
         Key={"user_id": user[A.USER_ID], "sk": user[A.SK]},
@@ -379,26 +410,27 @@ def test_do_dashboard_no_next_lab_when_all_past(monkeypatch, fake_aws, dynamodb_
             ":ip": "1.2.3.4",
             ":hn": smash_email(test_email),
             ":t": int(time.time()),
-        }
+        },
     )
 
     # Create a session using new_session - this goes into DynamoDB Local
-    event_for_session = {
-        "requestContext": {"http": {"sourceIp": "1.2.3.4"}}
-    }
-    ses = new_session(event_for_session, {"email": test_email, "preferred_name": "Test User"})
+    event_for_session = {"requestContext": {"http": {"sourceIp": "1.2.3.4"}}}
+    ses = new_session(
+        event_for_session, {"email": test_email, "preferred_name": "Test User"}
+    )
 
     event = {
         "requestContext": {
             "http": {"method": "GET", "sourceIp": "1.2.3.4"},
-            "stage": "test"
+            "stage": "test",
         },
         "rawPath": "/dashboard",
-        "cookies": [f"AuthSid={ses.sid}"]
+        "cookies": [f"AuthSid={ses.sid}"],
     }
 
     # Mock time to be after all lab deadlines
     from e11.e11_common import LAB_TIMEZONE
+
     test_time = datetime(2027, 1, 1, 12, 0, 0, tzinfo=LAB_TIMEZONE)  # After all labs
 
     with patch("home_app.home.datetime") as mock_dt:
@@ -440,5 +472,6 @@ def test_lab_name_normalization():
             lab_num = input_lab.replace("lab", "").strip()
             lab_key = f"lab{lab_num}"
 
-        assert lab_key == expected_key, f"Normalization failed: {input_lab} -> {lab_key} (expected {expected_key})"
-
+        assert lab_key == expected_key, (
+            f"Normalization failed: {input_lab} -> {lab_key} (expected {expected_key})"
+        )

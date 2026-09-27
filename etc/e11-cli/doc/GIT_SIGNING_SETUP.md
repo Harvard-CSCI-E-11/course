@@ -72,7 +72,7 @@ Create a conditional config that applies only in this directory:
 
 ```bash
 # In .git/config or ~/.gitconfig
-[includeIf "gitdir:~/gits/spring26/etc/e11-cli/"]
+[includeIf "gitdir:~/gits/spring27/etc/e11-cli/"]
     path = ~/.gitconfig-ai
 ```
 
@@ -146,7 +146,7 @@ gpg --full-generate-key
 gpg --list-secret-keys --keyid-format=long
 
 # 3. Configure this repository to use it
-cd /Users/simsong/gits/spring26/etc/e11-cli
+cd /Users/simsong/gits/spring27/etc/e11-cli
 git config user.signingkey "<NEW_KEY_ID>"
 ```
 
@@ -182,4 +182,3 @@ gpg --armor --export <KEY_ID> | pbcopy
 - **Key not found**: Make sure the key ID is correct and the key is in your GPG keyring
 - **Passphrase prompts**: Set up `gpg-agent` with pinentry or use a key without passphrase for automation
 - **Git not signing**: Verify `git config commit.gpgsign` is `true`
-

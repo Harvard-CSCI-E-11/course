@@ -6,71 +6,78 @@ authenticate with api_authenticate(payload), which returns the user directory.
 
 """
 
-import os
+import ipaddress
 import json
+import os
 import sys
 import time
 import uuid
-import ipaddress
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
-from botocore.exceptions import ClientError
 import paramiko.ssh_exception
-from mypy_boto3_route53.type_defs import ChangeTypeDef, ChangeBatchTypeDef
-
-from e11.e11core.utils import smash_email
-from e11.e11core.e11ssh import E11Ssh
-from e11.e11core import grader
+from botocore.exceptions import ClientError
 from e11.e11_common import (
+    CSCIE_BOT,
+    DASHBOARD,
+    DNS_TTL,
+    EMAIL_BODY,
+    HOSTED_ZONE_ID,
+    LAB_CONFIG,
+    LAB_TIMEZONE,
+    S3_BUCKET,
     A,
     EmailNotRegistered,
     add_grade,
-    add_user_log,
     add_image,
-    DASHBOARD,
-    DNS_TTL,
+    add_user_log,
     delete_image,
-    route53_client,
-    get_user_from_email,
     get_highest_grade_record,
+    get_user_from_email,
+    route53_client,
+    s3_client,
+    secretsmanager_client,
+    send_email2,
     sessions_table,
     users_table,
-    S3_BUCKET,
-    s3_client,
-    HOSTED_ZONE_ID,
-    CSCIE_BOT,
-    EMAIL_BODY,
-    send_email2,
-    secretsmanager_client,
-    LAB_CONFIG,
-    LAB_TIMEZONE,
 )
+from e11.e11core import grader
 from e11.e11core.constants import (
+    CONTENT_TYPE_HEADER,
+    CORS_HEADER,
+    CORS_WILDCARD,
     COURSE_DOMAIN,
-    HTTP_OK,
     HTTP_BAD_REQUEST,
     HTTP_FORBIDDEN,
     HTTP_INTERNAL_ERROR,
-    JSON_CONTENT_TYPE,
+    HTTP_OK,
     JPEG_MIME_TYPE,
-    CORS_HEADER,
-    CORS_WILDCARD,
-    CONTENT_TYPE_HEADER
+    JSON_CONTENT_TYPE,
 )
-from e11.e11core.utils import get_logger
+from e11.e11core.e11ssh import E11Ssh
+from e11.e11core.utils import get_logger, smash_email
 from e11.main import __version__
+from mypy_boto3_route53.type_defs import ChangeBatchTypeDef, ChangeTypeDef
 
 from .sessions import (
-    delete_session, expire_batch,
+    delete_session,
+    expire_batch,
 )
-
-
 
 LOGGER = get_logger("home")
 
 # Constants
-DOMAIN_SUFFIXES = ['', '-lab1', '-lab2', '-lab3', '-lab4', '-lab5', '-lab6', '-lab7', '-lab8']
+DOMAIN_SUFFIXES = [
+    "",
+    "-lab1",
+    "-lab2",
+    "-lab3",
+    "-lab4",
+    "-lab5",
+    "-lab6",
+    "-lab7",
+    "-lab8",
+]
 LastEvaluatedKey = "LastEvaluatedKey"  # pylint: disable=invalid-name
 
 MAX_IMAGE_SIZE_BYTES = 10_000_000
@@ -82,6 +89,7 @@ def _format_grade_event_timestamp(sk: str) -> str:
     if "." in timestamp:
         timestamp = timestamp.split(".", 1)[0]
     return timestamp
+
 
 def get_pkey_pem(key_name):
     """Return the PEM key"""
@@ -99,36 +107,42 @@ def get_pkey_pem(key_name):
     try:
         return keys[key_name]
     except KeyError:
-        LOGGER.exception("keys  %s not found. Available keys: %s", key_name, list(keys.keys()))
+        LOGGER.exception(
+            "keys  %s not found. Available keys: %s", key_name, list(keys.keys())
+        )
         raise
+
 
 def make_presigned_post(bucket, key, email):
     """Return the S3 presigned_post fields"""
     return s3_client.generate_presigned_post(
-        Bucket = bucket,
-        Key = key,
-        Conditions = [
-            { "Content-Type": JPEG_MIME_TYPE },
-            [ "content-length-range", 1, MAX_IMAGE_SIZE_BYTES],
-            { "x-amz-meta-email": email}
+        Bucket=bucket,
+        Key=key,
+        Conditions=[
+            {"Content-Type": JPEG_MIME_TYPE},
+            ["content-length-range", 1, MAX_IMAGE_SIZE_BYTES],
+            {"x-amz-meta-email": email},
         ],
-        Fields = { "Content-Type": JPEG_MIME_TYPE,
-                   "x-amz-meta-email" : email },
-        ExpiresIn = 120 )
+        Fields={"Content-Type": JPEG_MIME_TYPE, "x-amz-meta-email": email},
+        ExpiresIn=120,
+    )
+
 
 def make_presigned_url(bucket, key):
     """Return the S3 presigned URL"""
     return s3_client.generate_presigned_url(
-        'get_object',
-        Params={'Bucket':bucket, 'Key':key},
-        ExpiresIn = 120)
+        "get_object", Params={"Bucket": bucket, "Key": key}, ExpiresIn=120
+    )
+
 
 class APINotAuthenticated(Exception):
     def __init__(self, msg):
         super().__init__(msg)
 
-def resp_json( status: int, body: Dict[str, Any],
-               headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+
+def resp_json(
+    status: int, body: dict[str, Any], headers: dict[str, str] | None = None
+) -> dict[str, Any]:
     """End HTTP event processing with a JSON object"""
     LOGGER.debug("resp_json(status=%s) body=%s", status, body)
     return {
@@ -147,23 +161,27 @@ def validate_email_and_course_key(email, course_key):
     try:
         user = get_user_from_email(email)
     except EmailNotRegistered as e:
-        raise APINotAuthenticated( f"User email {email} is not registered. Please visit {DASHBOARD} to register." ) from e
+        raise APINotAuthenticated(
+            f"User email {email} is not registered. Please visit {DASHBOARD} to register."
+        ) from e
     if user.course_key != course_key:
         raise APINotAuthenticated(
             f"User course_key does not match registration course_key for email {email}. "
-            f"Please visit {DASHBOARD} to find correct course_key.")
+            f"Please visit {DASHBOARD} to find correct course_key."
+        )
     return user
+
 
 def validate_payload(payload):
     # See if there is an existing user_id for this email address.
-    LOGGER.info("validate_payload(%s)",payload)
+    LOGGER.info("validate_payload(%s)", payload)
     try:
         auth = payload["auth"]
     except KeyError as e:
         raise APINotAuthenticated("payload does not contain auth") from e
-    return validate_email_and_course_key( auth.get(A.EMAIL, ""),
-                                          auth.get(A.COURSE_KEY, ""))
-
+    return validate_email_and_course_key(
+        auth.get(A.EMAIL, ""), auth.get(A.COURSE_KEY, "")
+    )
 
 
 ###############################################################
@@ -175,31 +193,45 @@ def api_register(event, payload):
         "email", ""
     ):
         LOGGER.debug("*** auth.email != registration.email payload=%s", payload)
-        return resp_json(HTTP_FORBIDDEN, {"message": "API auth.email != registration.email"})
+        return resp_json(
+            HTTP_FORBIDDEN, {"message": "API auth.email != registration.email"}
+        )
 
     user = validate_payload(payload)
 
     # Get the registration information
-    verbose = payload.get('verbose',True)
-    source = payload.get('source', 'cli')
-    registration = payload['registration']
-    email = registration.get('email')
-    public_ip = registration.get('public_ip')
-    instanceId = registration.get('instanceId', registration.get('instanceid')) # pylint: disable=invalid-name
+    verbose = payload.get("verbose", True)
+    source = payload.get("source", "cli")
+    registration = payload["registration"]
+    email = registration.get("email")
+    public_ip = registration.get("public_ip")
+    instanceId = registration.get("instanceId", registration.get("instanceid"))  # pylint: disable=invalid-name
     hostname = smash_email(email)
 
     # update the user record in table to match registration information
-    users_table.update_item( Key={ "user_id": user.user_id, "sk": user.sk, },
+    users_table.update_item(
+        Key={
+            "user_id": user.user_id,
+            "sk": user.sk,
+        },
         UpdateExpression=f"SET {A.PUBLIC_IP} = :ip, {A.HOSTNAME} = :hn, {A.HOST_REGISTERED} = :t, {A.PREFERRED_NAME} = :preferred_name",
         ExpressionAttributeValues={
             ":ip": public_ip,
             ":hn": hostname,
             ":t": int(time.time()),
-            ":preferred_name": registration.get(A.PREFERRED_NAME), } )
+            ":preferred_name": registration.get(A.PREFERRED_NAME),
+        },
+    )
 
-    add_user_log( event, user.user_id,
-                  f"User registered source={source} instanceId={instanceId} public_ip={public_ip}",
-                  event_type="register", source=source, public_ip=public_ip, instanceId=instanceId)
+    add_user_log(
+        event,
+        user.user_id,
+        f"User registered source={source} instanceId={instanceId} public_ip={public_ip}",
+        event_type="register",
+        source=source,
+        public_ip=public_ip,
+        instanceId=instanceId,
+    )
 
     # Hosts that need to be created
     hostnames = [f"{hostname}{suffix}.{COURSE_DOMAIN}" for suffix in DOMAIN_SUFFIXES]
@@ -217,7 +249,14 @@ def api_register(event, payload):
             MaxItems="1",
         )
         rrs = resp.get("ResourceRecordSets", [])
-        match = next((r for r in rrs if r.get("Name", "").rstrip(".") == fqdn and r.get("Type") == "A"), None)
+        match = next(
+            (
+                r
+                for r in rrs
+                if r.get("Name", "").rstrip(".") == fqdn and r.get("Type") == "A"
+            ),
+            None,
+        )
         if match:
             existing_vals = sorted(v["Value"] for v in match.get("ResourceRecords", []))
             if existing_vals != [public_ip]:
@@ -227,12 +266,17 @@ def api_register(event, payload):
 
     # Create DNS records in Route53
     changes: list[ChangeTypeDef] = [
-        ChangeTypeDef( Action="UPSERT",
-                       ResourceRecordSet={ "Name": hostname,
-                                           "Type": "A",
-                                           "TTL": DNS_TTL, "ResourceRecords": [{"Value": public_ip}]
-                                          }
-                      ) for hostname in hostnames ]
+        ChangeTypeDef(
+            Action="UPSERT",
+            ResourceRecordSet={
+                "Name": hostname,
+                "Type": "A",
+                "TTL": DNS_TTL,
+                "ResourceRecords": [{"Value": public_ip}],
+            },
+        )
+        for hostname in hostnames
+    ]
 
     change_batch = ChangeBatchTypeDef(Changes=changes)
     route53_response = route53_client.change_resource_record_sets(
@@ -249,30 +293,51 @@ def api_register(event, payload):
             subject_parts.append(f"New DNS records created for {hostnames[0]}")
         if changed_records > 0:
             subject_parts.append(f"DNS records updated for {hostnames[0]}")
-        subject = "CSCI E-11 Update: " + "; ".join(subject_parts) if subject_parts else "CSCI E-11 Update"
-        send_email2(to_addrs=[email],
-                   email_subject = subject,
-                   email_body = EMAIL_BODY.format(
-                       hostname=hostnames[0],
-                       public_ip=public_ip,
-                       course_key=user.course_key,
-                       preferred_name=user.preferred_name))
-        add_user_log(event, user.user_id, f'Registration email sent to {email}')
-        return resp_json(HTTP_OK,{'message':
-                              'DNS updated and email sent successfully. '
-                              f'new_records={new_records} changed_records={changed_records}'})
-    return resp_json(HTTP_OK,{'message':f'DNS updated. No email sent. new_records={new_records} changed_records={changed_records}'})
+        subject = (
+            "CSCI E-11 Update: " + "; ".join(subject_parts)
+            if subject_parts
+            else "CSCI E-11 Update"
+        )
+        send_email2(
+            to_addrs=[email],
+            email_subject=subject,
+            email_body=EMAIL_BODY.format(
+                hostname=hostnames[0],
+                public_ip=public_ip,
+                course_key=user.course_key,
+                preferred_name=user.preferred_name,
+            ),
+        )
+        add_user_log(event, user.user_id, f"Registration email sent to {email}")
+        return resp_json(
+            HTTP_OK,
+            {
+                "message": "DNS updated and email sent successfully. "
+                f"new_records={new_records} changed_records={changed_records}"
+            },
+        )
+    return resp_json(
+        HTTP_OK,
+        {
+            "message": f"DNS updated. No email sent. new_records={new_records} changed_records={changed_records}"
+        },
+    )
 
 
 def api_shutdown(event, payload):
     """Record that an instance is shutting down."""
     user = validate_payload(payload)
-    registration = payload.get('registration', {})
-    source = payload.get('source', 'cli')
-    public_ip = registration.get('public_ip', user.public_ip)
-    instance_id = registration.get('instanceId', registration.get('instanceid'))
-    LOGGER.info("api_shutdown user_id=%s source=%s instanceId=%s public_ip=%s",
-                user.user_id, source, instance_id, public_ip)
+    registration = payload.get("registration", {})
+    source = payload.get("source", "cli")
+    public_ip = registration.get("public_ip", user.public_ip)
+    instance_id = registration.get("instanceId", registration.get("instanceid"))
+    LOGGER.info(
+        "api_shutdown user_id=%s source=%s instanceId=%s public_ip=%s",
+        user.user_id,
+        source,
+        instance_id,
+        public_ip,
+    )
     add_user_log(
         event,
         user.user_id,
@@ -298,7 +363,10 @@ def api_heartbeat(event, context):
         if LastEvaluatedKey not in page:
             break
         scan_kwargs["ExclusiveStartKey"] = page[LastEvaluatedKey]
-    return resp_json(HTTP_OK, {"now": now, "expired": expired, "elapsed": time.time() - t0})
+    return resp_json(
+        HTTP_OK, {"now": now, "expired": expired, "elapsed": time.time() - t0}
+    )
+
 
 def api_grader(event, context, payload):
     """
@@ -308,15 +376,15 @@ def api_grader(event, context, payload):
     Rejects grading requests if the lab deadline has passed, unless the request
     comes from SQS (which allows late grading for administrative purposes).
     """
-    LOGGER.info("api_grader event=%s context=%s payload=%s",event,context,payload)
+    LOGGER.info("api_grader event=%s context=%s payload=%s", event, context, payload)
     user = validate_payload(payload)
     if user.email is None:
         LOGGER.error("user.email is None")
-        return resp_json(HTTP_OK, {"error":True,
-                                   "message":"user.email is None",
-                                   "user":user})
+        return resp_json(
+            HTTP_OK, {"error": True, "message": "user.email is None", "user": user}
+        )
 
-    lab  = payload["lab"]
+    lab = payload["lab"]
     note = payload.get("note")
 
     # Check if request is from SQS (allow late grading for SQS requests)
@@ -338,34 +406,44 @@ def api_grader(event, context, payload):
             deadline = datetime.fromisoformat(deadline_str).replace(tzinfo=LAB_TIMEZONE)
             now = datetime.now(LAB_TIMEZONE)
             if now > deadline:
-                LOGGER.warning("Grading request for %s rejected: deadline %s has passed (current time: %s)",
-                             lab, deadline, now)
-                return resp_json(HTTP_FORBIDDEN, {
-                    "error": True,
-                    "message": f"Lab {lab} deadline has passed. The deadline was {deadline_str}.",
-                    "deadline": deadline_str
-                })
+                LOGGER.warning(
+                    "Grading request for %s rejected: deadline %s has passed (current time: %s)",
+                    lab,
+                    deadline,
+                    now,
+                )
+                return resp_json(
+                    HTTP_FORBIDDEN,
+                    {
+                        "error": True,
+                        "message": f"Lab {lab} deadline has passed. The deadline was {deadline_str}.",
+                        "deadline": deadline_str,
+                    },
+                )
 
     if user.public_ip is None:
-        send_email2(to_addrs=user.emails(),
-                   email_subject="Instance not registered",
-                   email_body="Attempt to grade aborted, as your instance is not registered.")
+        send_email2(
+            to_addrs=user.emails(),
+            email_subject="Instance not registered",
+            email_body="Attempt to grade aborted, as your instance is not registered.",
+        )
 
-
-        return resp_json(HTTP_OK, {"error":True,
-                            "message":"Instance not registered",
-                            "user":user })
+        return resp_json(
+            HTTP_OK, {"error": True, "message": "Instance not registered", "user": user}
+        )
 
     ###
     ### Here is where the actual grading happens...
     ###
     add_user_log(None, user.user_id, f"Grading lab {lab} starts", note=note)
 
-    summary = grader.grade_student_vm( user.email, user.public_ip, lab=lab, pkey_pem=get_pkey_pem(CSCIE_BOT) )
-    if summary['error']:
-        LOGGER.error("summary=%s",summary)
+    summary = grader.grade_student_vm(
+        user.email, user.public_ip, lab=lab, pkey_pem=get_pkey_pem(CSCIE_BOT)
+    )
+    if summary["error"]:
+        LOGGER.error("summary=%s", summary)
         return resp_json(HTTP_INTERNAL_ERROR, summary)
-    LOGGER.info("summary=%s",summary)
+    LOGGER.info("summary=%s", summary)
 
     previous_best_record = None
     if float(summary.get("score", 0)) < 5.0:
@@ -399,9 +477,14 @@ def api_check_access(event, payload, check_me=False):
         try:
             ipaddress.ip_address(public_ip)
         except ValueError as e:
-            return resp_json( HTTP_BAD_REQUEST, { "error": "user.ipaddress is not valid",
-                                     "e": e,
-                                     "public_ip": public_ip } )
+            return resp_json(
+                HTTP_BAD_REQUEST,
+                {
+                    "error": "user.ipaddress is not valid",
+                    "e": e,
+                    "public_ip": public_ip,
+                },
+            )
         LOGGER.info("api_check_access user=%s public_ip=%s", user, public_ip)
     else:
         # Try to get the source IP
@@ -418,17 +501,28 @@ def api_check_access(event, payload, check_me=False):
 
     try:
         rc, out, err = ssh.exec("hostname")
-        return resp_json( HTTP_OK, { "error": False,
-                                 "public_ip": public_ip,
-                                 "message": f"Access On for IP address {public_ip}",
-                                 "rc": rc,
-                                 "out": out,
-                                 "err": err })
+        return resp_json(
+            HTTP_OK,
+            {
+                "error": False,
+                "public_ip": public_ip,
+                "message": f"Access On for IP address {public_ip}",
+                "rc": rc,
+                "out": out,
+                "err": err,
+            },
+        )
     except paramiko.ssh_exception.AuthenticationException as e:  # type: ignore[attr-defined]
-        return resp_json( HTTP_OK, { "error": False,
-                                 "public_ip": public_ip,
-                                 "message": f"Access Off for IP address {public_ip}",
-                                 "e": str(e) })
+        return resp_json(
+            HTTP_OK,
+            {
+                "error": False,
+                "public_ip": public_ip,
+                "message": f"Access Off for IP address {public_ip}",
+                "e": str(e),
+            },
+        )
+
 
 def api_delete_session(payload):
     """Delete the specified session. If the user knows the sid, that's good enough (we don't require that the sid be sealed)."""
@@ -437,31 +531,49 @@ def api_delete_session(payload):
         return resp_json(HTTP_OK, {"result": delete_session(sid)})
     return resp_json(HTTP_BAD_REQUEST, {"error": "no sid provided"})
 
+
 ################ images ################
 def api_post_image(event, payload):
     """For lab 8 - validate the course key and give the user an upload S3. The image only gets added to the database if there is a successful upload."""
-    user = validate_payload( payload )
+    user = validate_payload(payload)
     s3key = "images/" + str(uuid.uuid4()) + ".jpeg"
     presigned_post = make_presigned_post(S3_BUCKET, s3key, user.email)
-    LOGGER.info("event=%s payload=%s user=%s presigned_post=%s",event, payload, user,presigned_post)
-    return resp_json(HTTP_OK, {"presigned_post":presigned_post})
+    LOGGER.info(
+        "event=%s payload=%s user=%s presigned_post=%s",
+        event,
+        payload,
+        user,
+        presigned_post,
+    )
+    return resp_json(HTTP_OK, {"presigned_post": presigned_post})
+
 
 def api_upload_callback(bucket, key):
-    LOGGER.info("api_upload_callback(%s,%s)",bucket, key)
+    LOGGER.info("api_upload_callback(%s,%s)", bucket, key)
     # Get the metadata
     r = s3_client.head_object(Bucket=bucket, Key=key)
-    email = r.get('Metadata',{}).get('email','')
-    user = get_user_from_email(email) # email is already validated at this point (see above)
-    add_image( user.user_id, 'lab8', bucket, key )
+    email = r.get("Metadata", {}).get("email", "")
+    user = get_user_from_email(
+        email
+    )  # email is already validated at this point (see above)
+    add_image(user.user_id, "lab8", bucket, key)
+
 
 def api_delete_image(payload):
     """Delete the specified session. If the user knows the sid, that's good enough (we don't require that the sid be sealed)."""
     try:
-        return resp_json(HTTP_OK, {"result": delete_image(payload.get("user_id"),
-                                                          payload.get("sk"),
-                                                          payload.get("bucket"),
-                                                          payload.get("key"))})
-    except (ValueError,TypeError,KeyError) as e:
+        return resp_json(
+            HTTP_OK,
+            {
+                "result": delete_image(
+                    payload.get("user_id"),
+                    payload.get("sk"),
+                    payload.get("bucket"),
+                    payload.get("key"),
+                )
+            },
+        )
+    except (ValueError, TypeError, KeyError) as e:
         return resp_json(HTTP_BAD_REQUEST, {"error": str(e)})
 
 
@@ -470,16 +582,26 @@ def dispatch(method, action, event, context, payload):
     ################################################################
     # JSON API Actions
     #
-    LOGGER.debug("dispatch(method=%s action=%s event=%s context=%s payload=%s",
-                 method, action, event, context, payload)
+    LOGGER.debug(
+        "dispatch(method=%s action=%s event=%s context=%s payload=%s",
+        method,
+        action,
+        event,
+        context,
+        payload,
+    )
     match (method, action):
         case ("POST", "ping"):
-            return resp_json( HTTP_OK, {
+            return resp_json(
+                HTTP_OK,
+                {
                     "error": False,
                     "message": "ok",
                     "path": sys.path,
                     "context": dict(context),
-                    "environ": dict(os.environ), }, )
+                    "environ": dict(os.environ),
+                },
+            )
 
         case ("POST", "ping-mail"):
             hostnames = ["first"]
@@ -487,15 +609,21 @@ def dispatch(method, action, event, context, payload):
             resp = send_email2(
                 to_addrs=[payload[A.EMAIL]],
                 email_subject="E11 email ping",
-                email_body=EMAIL_BODY.format( hostname=hostnames[0], public_ip=public_ip ) )
+                email_body=EMAIL_BODY.format(
+                    hostname=hostnames[0], public_ip=public_ip
+                ),
+            )
 
-            return resp_json( HTTP_OK, {
-                "error": False,
-                "message": "ok",
-                "path": sys.path,
-                "resp": resp,
-                "environ": dict(os.environ),
-                },)
+            return resp_json(
+                HTTP_OK,
+                {
+                    "error": False,
+                    "message": "ok",
+                    "path": sys.path,
+                    "resp": resp,
+                    "environ": dict(os.environ),
+                },
+            )
 
         case ("POST", "register"):
             return api_register(event, payload)
@@ -525,16 +653,24 @@ def dispatch(method, action, event, context, payload):
             return api_heartbeat(event, context)
 
         case ("POST", "version"):
-            return resp_json(HTTP_OK, {
-                'error':False,
-                'version':__version__,
-                'deployment_timestamp':os.environ.get('DEPLOYMENT_TIMESTAMP')})
+            return resp_json(
+                HTTP_OK,
+                {
+                    "error": False,
+                    "version": __version__,
+                    "deployment_timestamp": os.environ.get("DEPLOYMENT_TIMESTAMP"),
+                },
+            )
 
         # Must be last API call - match all actions
         case (_, _):
-            return resp_json( HTTP_BAD_REQUEST,{
-                "error": True,
-                "message": "unknown or missing action.",
-                "method": method,
-                "action": action,
-                "version": __version__ })
+            return resp_json(
+                HTTP_BAD_REQUEST,
+                {
+                    "error": True,
+                    "message": "unknown or missing action.",
+                    "method": method,
+                    "action": action,
+                    "version": __version__,
+                },
+            )

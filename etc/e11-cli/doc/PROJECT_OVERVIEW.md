@@ -19,7 +19,7 @@ e11-cli/
 │   ├── main.py                   # Main CLI command handler
 │   ├── support.py                # Utility functions for file/config access
 │   ├── doctor.py                 # System diagnostic tool
-│   ├── staff.py                  # Staff-only commands (when E11_STAFF env var set)
+│   ├── e11admin/staff.py         # Staff-only command implementations
 │   ├── e11_common.py             # Shared DynamoDB and AWS utilities
 │   ├── e11core/                  # Core grader framework
 │   │   ├── assertions.py         # Test assertion helpers
@@ -49,7 +49,7 @@ e11-cli/
 │   └── tests/                    # Lambda-home test suite
 ├── lambda-users-db/              # SAM template for DynamoDB table creation
 ├── tests/                        # E11 CLI test suite
-├── pyproject.toml                # Poetry configuration
+├── pyproject.toml                # uv project and package configuration
 ├── Makefile                      # Build and test automation
 ├── README.md                     # User-facing documentation
 ├── TESTING.md                    # Testing documentation
@@ -232,7 +232,7 @@ Located at `/home/ubuntu/e11-config.ini`, contains:
 ## Dependencies
 
 ### E11 CLI Core
-- Python 3.12+
+- Python 3.14
 - boto3 - AWS SDK
 - paramiko - SSH client
 - requests - HTTP client
@@ -244,7 +244,7 @@ Located at `/home/ubuntu/e11-config.ini`, contains:
 - crossplane - Nginx config parsing
 
 ### Lambda-Home
-- Python 3.13 (Lambda runtime)
+- Python 3.14 (Lambda runtime)
 - All E11 CLI dependencies
 - Additional AWS service integrations (DynamoDB, SES, Route53, Secrets Manager)
 
@@ -294,17 +294,7 @@ Pre-deployment checks include:
 
 ### Known Technical Debt
 
-- `context.py` should be folded into `config.py` (noted in README)
-- `utils.py` and `constants.py` could be merged into `common.py` (noted in README)
-- Not all uses of 'spring26' are fully parameterized (noted in constants.py)
-
-### Future Improvements
-
-- Increase test coverage for E11 CLI
-- Add SSH testing capabilities
-- More comprehensive integration tests
-- Performance testing for critical paths
-- Security testing for authentication flows
+See `doc/TODO.md` for the current ranked list of testing, documentation, and code debt.
 
 ## Related Documentation
 
@@ -320,4 +310,3 @@ For issues or questions:
 - Course staff: See course communication channels
 - Technical issues: GitHub repository issues
 - Author: Simson Garfinkel <simsong@acm.org>
-
