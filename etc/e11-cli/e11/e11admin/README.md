@@ -30,6 +30,57 @@ To see available commands:
 uv run --locked e11admin --help
 ```
 
+## DynamoDB backups
+
+Create a backup in a new directory, inspect it as JSON Lines, and restore it:
+
+```bash
+AWS_PROFILE=e11-staff AWS_REGION=us-east-1 make ddb-backup DDB_DIR=/secure/path/backup-2026-09-06
+make -s ddb-view DDB_DIR=/secure/path/backup-2026-09-06 > /secure/path/backup.jsonl
+AWS_PROFILE=e11-staff AWS_REGION=us-east-1 make ddb-restore DDB_DIR=/secure/path/backup-2026-09-06 DDB_ALLOW_RESTORE=YES
+```
+
+Run these from `etc/e11-cli`. The explicit restore flag prevents an accidental
+write. Keep the backup and rendered JSON Lines outside the Git repository.
+
+All three commands accept a repeatable `--table TABLE` option. With no
+`--table`, `backup` includes every table visible to the current AWS account and
+`restore`/`view` include every table in the manifest.
+
+The backup directory is created with mode `0700` and must not already exist.
+It contains a versioned `manifest.json` and one gzip-compressed binary `.ddb`
+file per table. The files retain DynamoDB's typed attribute representation,
+including exact numbers, binary values, sets, maps, and lists. The manifest
+records each table's primary-key schema, record count, and SHA-256 checksum.
+Treat the directory as sensitive course data and do not commit it.
+
+`restore` performs a full preflight before its first write: it verifies the
+manifest, checksums, record counts, target-table key schemas, every record's
+primary key, and duplicate keys. It then uses DynamoDB `PutRequest` operations,
+so an existing item with the same partition and sort key is replaced and
+re-running the restore is idempotent. Items in the target table that are absent
+from the backup are not deleted. A service failure during writes can leave a
+partial restore, but it is safe to rerun the same command.
+
+`view` writes one object per line with `table` and `item` fields. Binary values
+appear as `{"$binary":"BASE64"}` and non-integral exact numbers as
+`{"$number":"..."}`. This rendering is for review only; restore always reads
+the lossless `.ddb` files.
+
+For a coherent multi-table rollover backup, stop application writes before
+running `backup`. Consistent DynamoDB scans do not provide a transactionally
+consistent snapshot across pages or tables.
+
+## End-of-course DNS cleanup
+
+See [End of Course Procedure](../../../../doc/End%20of%20Course%20Procedure.md)
+for the backup, review, and approval sequence. From `etc/e11-cli`, use
+`make dns-plan` with `DNS_DOMAIN`, `DNS_ZONE_ID`, `DNS_ACCOUNT_ID`, `DNS_NAMES`,
+and `DNS_PLAN`. The planner only reads Route 53 and writes a new exact plan.
+`make dns-apply` additionally requires `DNS_SHA256` from the independently
+approved plan and rechecks the account, hosted zone, and live records before
+deleting. The old broad keep-list deletion interface is retired.
+
 New grading-history command:
 ```bash
 uv run --locked e11admin student-log student@example.edu

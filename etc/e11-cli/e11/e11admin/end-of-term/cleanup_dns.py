@@ -1,126 +1,238 @@
 #!/usr/bin/env python3
+"""Plan and apply explicitly reviewed Route 53 student-record deletions."""
+
+from __future__ import annotations
+
 import argparse
-import logging
+import hashlib
+import json
 import sys
+from pathlib import Path
+from typing import Any
 
 import boto3
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-logger = logging.getLogger(__name__)
+NAME = "Name"
+TYPE = "Type"
+RECORDS = "ResourceRecords"
+ALIAS = "AliasTarget"
+VALUE = "Value"
+ACTION = "Action"
+RESOURCE_RECORD_SET = "ResourceRecordSet"
+RESOURCE_RECORD_SETS = "ResourceRecordSets"
+SET_IDENTIFIER = "SetIdentifier"
+TRAFFIC_POLICY_INSTANCE_ID = "TrafficPolicyInstanceId"
+CHANGE_INFO = "ChangeInfo"
+ID = "Id"
+MAX_ELEMENTS = 1000
+MAX_VALUE_CHARS = 32000
 
-def normalize(name):
-    """Ensure name ends with a single trailing dot."""
-    name = name.strip()
-    if not name.endswith('.'):
-        name += '.'
-    return name
 
-def get_hosted_zone_id(client, domain):
-    """
-    Find the hosted zone ID for a given domain name by paginating
-    list_hosted_zones (which *is* pageable).
-    """
-    domain = normalize(domain)
-    paginator = client.get_paginator('list_hosted_zones')
-    for page in paginator.paginate():
-        for zone in page.get('HostedZones', []):
-            if normalize(zone['Name']) == domain:
-                zone_id = zone['Id'].split('/')[-1]
-                logger.info("Found hosted zone %s for domain %s", zone_id, domain)
-                return zone_id
-    logger.error("Hosted zone for domain %s not found", domain)
-    sys.exit(1)
+class CleanupError(ValueError):
+    """The proposed DNS cleanup is incomplete or unsafe."""
 
-def list_a_records(client, zone_id):
-    """Yield all A-type record sets in the given hosted zone."""
-    paginator = client.get_paginator('list_resource_record_sets')
-    for page in paginator.paginate(HostedZoneId=zone_id):
-        for rr in page.get('ResourceRecordSets', []):
-            if rr.get('Type') == 'A':
-                yield {
-                    'Name': normalize(rr['Name']),
-                    'TTL': rr.get('TTL'),
-                    'Records': [r['Value'] for r in rr.get('ResourceRecords', [])]
-                }
 
-def delete_records(client, zone_id, to_delete):
-    """Submit a ChangeBatch to delete the given record-sets."""
-    if not to_delete:
-        logger.info("No records to delete.")
-        return
+class CleanupPlan(BaseModel):
+    """Reviewed metadata and exact Route 53 API changes."""
 
-    changes = []
-    for rr in to_delete:
-        change = {
-            'Action': 'DELETE',
-            'ResourceRecordSet': {
-                'Name': rr['Name'],
-                'Type': 'A',
-                'TTL': rr['TTL'],
-                'ResourceRecords': [{'Value': v} for v in rr['Records']]
-            }
-        }
-        changes.append(change)
+    model_config = ConfigDict(extra="forbid")
+    domain: str
+    zone_id: str
+    account_id: str
+    changes: list[dict[str, Any]] = Field(min_length=1)
 
-    batch = {'Changes': changes}
-    logger.info("Submitting delete batch with %d record(s)", len(changes))
+
+def normalize(name: str) -> str:
+    return name.strip().lower().rstrip(".") + "."
+
+
+def student_names(path: Path, domain: str) -> set[str]:
+    suffix = normalize(domain)
+    names = {
+        normalize(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    }
+    if not names or any(
+        name == suffix or not name.endswith("." + suffix) or "*" in name
+        for name in names
+    ):
+        raise CleanupError("names file must contain only student subdomains of the zone")
+    return names
+
+
+def _validate_record(record: dict[str, Any], domain: str) -> None:
+    name = record.get(NAME)
+    record_type = record.get(TYPE)
+    if not isinstance(name, str) or not isinstance(record_type, str):
+        raise CleanupError("record lacks a name or type")
+    suffix = normalize(domain)
+    if normalize(name) == suffix or not normalize(name).endswith("." + suffix):
+        raise CleanupError(f"record is outside student subdomains: {name}")
+    if record_type in {"NS", "SOA"} or TRAFFIC_POLICY_INSTANCE_ID in record:
+        raise CleanupError(f"record needs separate handling: {name} {record_type}")
+    if (ALIAS in record) == (RECORDS in record):
+        raise CleanupError(f"record needs exactly one alias or value list: {name}")
+    if RECORDS in record and ("TTL" not in record or not record[RECORDS]):
+        raise CleanupError(f"record needs TTL and values: {name}")
+
+
+def build_plan(
+    records: list[dict[str, Any]], names: set[str], domain: str,
+    zone_id: str, account_id: str,
+) -> CleanupPlan:
+    """Keep complete record sets so Route 53 can delete routed and alias records."""
+    found = {normalize(record[NAME]) for record in records if normalize(record[NAME]) in names}
+    missing = sorted(names - found)
+    if missing:
+        raise CleanupError(f"student names have no records: {', '.join(missing)}")
+    selected = [record for record in records if normalize(record[NAME]) in names]
+    for record in selected:
+        _validate_record(record, domain)
+    selected.sort(key=lambda record: (normalize(record[NAME]), record[TYPE], record.get(SET_IDENTIFIER, "")))
+    keys = [(normalize(record[NAME]), record[TYPE], record.get(SET_IDENTIFIER)) for record in selected]
+    if len(keys) != len(set(keys)):
+        raise CleanupError("zone export contains duplicate record sets")
+    changes = [{ACTION: "DELETE", RESOURCE_RECORD_SET: record} for record in selected]
+    plan = CleanupPlan(domain=normalize(domain), zone_id=zone_id,
+                       account_id=account_id, changes=changes)
+    batches(plan.changes)
+    return plan
+
+
+def batches(changes: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+    """Honor both Route 53 request limits, including multi-value records."""
+    result: list[list[dict[str, Any]]] = []
+    batch: list[dict[str, Any]] = []
+    elements = characters = 0
+    for change in changes:
+        record = change[RESOURCE_RECORD_SET]
+        values = record.get(RECORDS, [])
+        count = len(values) if values else 1
+        length = sum(len(value[VALUE]) for value in values)
+        if count > MAX_ELEMENTS or length > MAX_VALUE_CHARS:
+            raise CleanupError(f"record exceeds Route 53 batch limits: {record[NAME]}")
+        if batch and (elements + count > MAX_ELEMENTS or characters + length > MAX_VALUE_CHARS):
+            result.append(batch)
+            batch = []
+            elements = characters = 0
+        batch.append(change)
+        elements += count
+        characters += length
+    if batch:
+        result.append(batch)
+    return result
+
+
+def _list_records(client: Any, zone_id: str) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for page in client.get_paginator("list_resource_record_sets").paginate(HostedZoneId=zone_id):
+        records.extend(page[RESOURCE_RECORD_SETS])
+    return records
+
+
+def _client(profile: str | None, zone_id: str, domain: str, account_id: str) -> Any:
+    session = boto3.Session(profile_name=profile)
+    actual_account = session.client("sts").get_caller_identity()["Account"]
+    if actual_account != account_id:
+        raise CleanupError(f"AWS account mismatch: expected {account_id}, got {actual_account}")
+    client = session.client("route53")
+    zone = client.get_hosted_zone(Id=zone_id)["HostedZone"]
+    if normalize(zone[NAME]) != normalize(domain) or zone[ID].split("/")[-1] != zone_id:
+        raise CleanupError("hosted zone name or ID does not match the request")
+    return client
+
+
+def _read_plan(path: Path, expected_hash: str) -> CleanupPlan:
+    content = path.read_bytes()
+    actual_hash = hashlib.sha256(content).hexdigest()
+    if actual_hash != expected_hash:
+        raise CleanupError("plan SHA-256 does not match the reviewed file")
+    plan = CleanupPlan.model_validate_json(content)
+    names: set[str] = set()
+    for change in plan.changes:
+        if set(change) != {ACTION, RESOURCE_RECORD_SET} or change[ACTION] != "DELETE":
+            raise CleanupError("plan contains a non-delete or incomplete change")
+        record = change[RESOURCE_RECORD_SET]
+        _validate_record(record, plan.domain)
+        names.add(normalize(record[NAME]))
+    if len(names) == 0:
+        raise CleanupError("plan is empty")
+    batches(plan.changes)
+    return plan
+
+
+def _matching_records(plan: CleanupPlan, current: list[dict[str, Any]]) -> None:
+    names = {normalize(change[RESOURCE_RECORD_SET][NAME]) for change in plan.changes}
+    planned = [change[RESOURCE_RECORD_SET] for change in plan.changes]
+    live = [record for record in current if normalize(record[NAME]) in names]
+    canonical = lambda records: sorted(json.dumps(record, sort_keys=True) for record in records)
+    if canonical(planned) != canonical(live):
+        raise CleanupError("live student records changed after the plan was written")
+
+
+def _arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--domain", required=True)
+    parser.add_argument("--zone-id", required=True)
+    parser.add_argument("--account-id", required=True)
+    parser.add_argument("--profile", help="AWS profile; defaults to normal AWS resolution")
+    actions = parser.add_mutually_exclusive_group(required=True)
+    actions.add_argument("--plan", type=Path, help="write a new dry-run plan file")
+    actions.add_argument("--apply-plan", type=Path, help="apply an approved plan")
+    parser.add_argument("--names", type=Path, help="explicit student names to delete")
+    parser.add_argument("--zone-export", type=Path, help="offline Route 53 zone export for planning")
+    parser.add_argument("--sha256", help="approved SHA-256 of the plan file")
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = _arguments()
     try:
-        resp = client.change_resource_record_sets(
-            HostedZoneId=zone_id,
-            ChangeBatch=batch
-        )
-        logger.info("Change submitted: %s", resp['ChangeInfo']['Id'])
-    except ClientError as e:
-        logger.error("Failed to delete records: %s", e)
-        sys.exit(1)
+        if args.plan:
+            if not args.names or args.sha256:
+                raise CleanupError("planning requires --names and forbids --sha256")
+            if args.zone_export:
+                export = json.loads(args.zone_export.read_text(encoding="utf-8"))
+                records = export[RESOURCE_RECORD_SETS]
+            else:
+                client = _client(args.profile, args.zone_id, args.domain, args.account_id)
+                records = _list_records(client, args.zone_id)
+            plan = build_plan(records, student_names(args.names, args.domain),
+                              args.domain, args.zone_id, args.account_id)
+            with args.plan.open("x", encoding="utf-8") as stream:
+                stream.write(plan.model_dump_json(indent=2) + "\n")
+            digest = hashlib.sha256(args.plan.read_bytes()).hexdigest()
+            print(f"Plan: {args.plan}; changes: {len(plan.changes)}; SHA-256: {digest}")
+            for change in plan.changes:
+                record = change[RESOURCE_RECORD_SET]
+                print(f"DELETE {record[NAME]} {record[TYPE]}")
+            return 0
+        if args.zone_export or args.names or not args.sha256:
+            raise CleanupError("apply requires --sha256 and forbids --zone-export/--names")
+        plan = _read_plan(args.apply_plan, args.sha256)
+        if (plan.domain, plan.zone_id, plan.account_id) != (
+            normalize(args.domain), args.zone_id, args.account_id
+        ):
+            raise CleanupError("plan domain, hosted zone, or AWS account does not match")
+        client = _client(args.profile, args.zone_id, args.domain, args.account_id)
+        _matching_records(plan, _list_records(client, args.zone_id))
+        for batch in batches(plan.changes):
+            response = client.change_resource_record_sets(
+                HostedZoneId=args.zone_id, ChangeBatch={"Changes": batch}
+            )
+            change_id = response[CHANGE_INFO][ID]
+            print(f"Submitted change {change_id}; waiting for INSYNC", flush=True)
+            client.get_waiter("resource_record_sets_changed").wait(Id=change_id)
+            print(f"INSYNC {change_id}", flush=True)
+        return 0
+    except (CleanupError, OSError, ValueError, KeyError, TypeError,
+            ValidationError, BotoCoreError, ClientError) as error:
+        print(f"DNS cleanup failed: {error}", file=sys.stderr)
+        return 1
 
-def main():
-    p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-                                description="List and optionally delete Route 53 A records not on a keep-list." )
-    p.add_argument('--domain', default='csci-e-11.org',
-                   help="Domain name (must match hosted zone)")
-    p.add_argument('--keep', default='keep-names.txt',
-                   help="Path to file listing record names to keep (one per line)")
-    p.add_argument('--delete', '-d', action='store_true',
-                   help="Actually delete records not in keep-list. Otherwise dry‐run.")
-    args = p.parse_args()
 
-    # Read and normalize keep-list
-    try:
-        with open(args.keep, 'r') as f:
-            keep_names = {normalize(line) for line in f if line.strip()}
-    except IOError as e:
-        logger.error("Unable to read keep-list file %s: %s", args.keep, e)
-        sys.exit(1)
-
-    client = boto3.Session(profile_name='fas').client('route53')
-    zone_id = get_hosted_zone_id(client, args.domain)
-
-    all_a = list(list_a_records(client, zone_id))
-    if not all_a:
-        logger.info("No A records found in zone %s", zone_id)
-        return
-
-    logger.info("Found %d A records:", len(all_a))
-    for rr in all_a:
-        logger.info("  %s → %s", rr['Name'], ', '.join(rr['Records']))
-
-    # Filter out those we must keep
-    to_delete = [rr for rr in all_a if rr['Name'] not in keep_names]
-
-    if not to_delete:
-        logger.info("All A records are in the keep-list. Nothing to delete.")
-        return
-
-    for rr in to_delete:
-        logger.warning("  will delete %s", rr['Name'])
-    logger.warning("records to delete: %d", len(to_delete))
-
-    if args.delete:
-        delete_records(client, zone_id, to_delete)
-    else:
-        logger.info("Dry run only. Rerun with --delete to remove them.")
-
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    sys.exit(main())

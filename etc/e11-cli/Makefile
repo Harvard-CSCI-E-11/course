@@ -95,5 +95,31 @@ dump-tables:
 		$(E11_VARS) aws dynamodb scan --max-items 5 --table-name $$tn ; \
 		done
 
+.PHONY: ddb-backup ddb-view ddb-restore
+ddb-backup: .venv/pyvenv.cfg
+	@test -n "$(DDB_DIR)"
+	@uv run --locked e11admin backup "$(DDB_DIR)" $(if $(DDB_TABLE),--table "$(DDB_TABLE)")
+
+ddb-view: .venv/pyvenv.cfg
+	@test -n "$(DDB_DIR)"
+	@uv run --locked e11admin view "$(DDB_DIR)" $(if $(DDB_TABLE),--table "$(DDB_TABLE)")
+
+ddb-restore: .venv/pyvenv.cfg
+	@test -n "$(DDB_DIR)" && test "$(DDB_ALLOW_RESTORE)" = YES
+	@uv run --locked e11admin restore "$(DDB_DIR)" $(if $(DDB_TABLE),--table "$(DDB_TABLE)")
+
+# DNS cleanup requires an explicit student-name list and a reviewed plan hash.
+DNS_CLEANUP := e11/e11admin/end-of-term/cleanup_dns.py
+DNS_ARGS = --domain "$(DNS_DOMAIN)" --zone-id "$(DNS_ZONE_ID)" --account-id "$(DNS_ACCOUNT_ID)" $(if $(DNS_PROFILE),--profile "$(DNS_PROFILE)")
+
+.PHONY: dns-plan dns-apply
+dns-plan: .venv/pyvenv.cfg
+	@test -n "$(DNS_DOMAIN)" && test -n "$(DNS_ZONE_ID)" && test -n "$(DNS_ACCOUNT_ID)" && test -n "$(DNS_NAMES)" && test -n "$(DNS_PLAN)"
+	uv run --locked python $(DNS_CLEANUP) $(DNS_ARGS) --names "$(DNS_NAMES)" --plan "$(DNS_PLAN)" $(if $(DNS_ZONE_EXPORT),--zone-export "$(DNS_ZONE_EXPORT)")
+
+dns-apply: .venv/pyvenv.cfg
+	@test -n "$(DNS_DOMAIN)" && test -n "$(DNS_ZONE_ID)" && test -n "$(DNS_ACCOUNT_ID)" && test -n "$(DNS_PLAN)" && test -n "$(DNS_SHA256)"
+	uv run --locked python $(DNS_CLEANUP) $(DNS_ARGS) --apply-plan "$(DNS_PLAN)" --sha256 "$(DNS_SHA256)"
+
 
 .PHONY: start_local_dynamodb stop_local_dynamodb list-tables dump-demo-tables

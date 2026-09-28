@@ -1,5 +1,25 @@
 # Release notes
 
+## 2026-09-27: End-of-course cleanup commands
+
+- Added Makefile entry points for DynamoDB backup, view, and guarded restore.
+- Replaced broad Route 53 keep-list deletion with an explicit student-name plan,
+  complete record-set preservation, bounded batches, an approved plan hash,
+  live account/zone/record checks, and `INSYNC` waits.
+- Added offline DNS plan and guard tests plus an end-of-course operator procedure.
+
+## 2026-09-06: DynamoDB backup and restore
+
+- Added `e11admin backup`, `restore`, and `view` commands. Backups use a
+  checksummed, versioned manifest and one lossless compressed `.ddb` file per
+  table.
+- Restore validates every selected file, record, primary key, record count,
+  and target key schema before writing. Records are idempotently upserted, and
+  unrelated target records are retained.
+- Added DynamoDB Local integration coverage for binary values, exact numbers,
+  sets, nested values, repeat restores, corrupt archives, schema mismatch, and
+  the no-partial-write preflight guarantee.
+
 ## 2026-08-23: uv and Python 3.14 migration
 
 ### Project and dependency management

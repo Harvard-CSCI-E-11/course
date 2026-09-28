@@ -131,6 +131,9 @@ Student selectors:
 * `--user-id <user_id>` or `--user_id <user_id>` - Select a student by `user_id`
 
 Selected options:
+* `backup <new-directory> [--table <name>]` - Create lossless local DynamoDB archives and a checksummed manifest
+* `view <backup-directory> [--table <name>]` - Render archived records as JSON Lines for review
+* `restore <backup-directory> [--table <name>]` - Validate the complete archive and idempotently upsert its records
 * `class --dump` - Dump all table data
 * `class --delete-userid <id>` or `class --delete_userid <id>` - Delete a user by `user_id`
 * `class --delete_item --user-id <id> --sk <key>` - Delete a specific item
@@ -139,6 +142,10 @@ Selected options:
 * `ssh --email <email>` or `ssh --user-id <id>` - SSH into a student's VM
 
 See `e11/e11admin/README.md` for details.
+
+The backup directory contains sensitive course data. Keep it out of the
+repository. Stop application writes during the final rollover backup because
+consistent DynamoDB scans are not a cross-table snapshot.
 
 # DynamoDB Database Structure
 

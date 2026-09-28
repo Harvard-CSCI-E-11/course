@@ -21,6 +21,7 @@ node_modules
 CLAUDE.md
 *.csv
 *.json
+*.ddb
 .env
 .env
 .envrc
