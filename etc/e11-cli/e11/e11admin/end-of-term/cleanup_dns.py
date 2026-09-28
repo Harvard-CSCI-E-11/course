@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 NAME = "Name"
 TYPE = "Type"
+TTL = "TTL"
 RECORDS = "ResourceRecords"
 ALIAS = "AliasTarget"
 VALUE = "Value"
@@ -26,6 +27,9 @@ SET_IDENTIFIER = "SetIdentifier"
 TRAFFIC_POLICY_INSTANCE_ID = "TrafficPolicyInstanceId"
 CHANGE_INFO = "ChangeInfo"
 ID = "Id"
+ACCOUNT = "Account"
+HOSTED_ZONE = "HostedZone"
+CHANGES = "Changes"
 MAX_ELEMENTS = 1000
 MAX_VALUE_CHARS = 32000
 
@@ -75,7 +79,7 @@ def _validate_record(record: dict[str, Any], domain: str) -> None:
         raise CleanupError(f"record needs separate handling: {name} {record_type}")
     if (ALIAS in record) == (RECORDS in record):
         raise CleanupError(f"record needs exactly one alias or value list: {name}")
-    if RECORDS in record and ("TTL" not in record or not record[RECORDS]):
+    if RECORDS in record and (TTL not in record or not record[RECORDS]):
         raise CleanupError(f"record needs TTL and values: {name}")
 
 
@@ -135,11 +139,11 @@ def _list_records(client: Any, zone_id: str) -> list[dict[str, Any]]:
 
 def _client(profile: str | None, zone_id: str, domain: str, account_id: str) -> Any:
     session = boto3.Session(profile_name=profile)
-    actual_account = session.client("sts").get_caller_identity()["Account"]
+    actual_account = session.client("sts").get_caller_identity()[ACCOUNT]
     if actual_account != account_id:
         raise CleanupError(f"AWS account mismatch: expected {account_id}, got {actual_account}")
     client = session.client("route53")
-    zone = client.get_hosted_zone(Id=zone_id)["HostedZone"]
+    zone = client.get_hosted_zone(Id=zone_id)[HOSTED_ZONE]
     if normalize(zone[NAME]) != normalize(domain) or zone[ID].split("/")[-1] != zone_id:
         raise CleanupError("hosted zone name or ID does not match the request")
     return client
@@ -221,7 +225,7 @@ def main() -> int:
         _matching_records(plan, _list_records(client, args.zone_id))
         for batch in batches(plan.changes):
             response = client.change_resource_record_sets(
-                HostedZoneId=args.zone_id, ChangeBatch={"Changes": batch}
+                HostedZoneId=args.zone_id, ChangeBatch={CHANGES: batch}
             )
             change_id = response[CHANGE_INFO][ID]
             print(f"Submitted change {change_id}; waiting for INSYNC", flush=True)
