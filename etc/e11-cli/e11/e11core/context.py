@@ -21,7 +21,7 @@ class E11Context:  # pylint: disable=too-many-instance-attributes
     lab: str  # e.g., "lab3"
     labnum: int  # e.g., 3
     course_root: str
-    labdir: str  # e.g., "/home/ubuntu/spring26/lab3"
+    labdir: str  # e.g., "/home/ubuntu/e11-course/lab3"
     labdns: Optional[str] = None  # e.g., "smashedemail-lab3.{COURSE_DOMAIN}"
 
     # Student info
@@ -67,7 +67,7 @@ class E11Context:  # pylint: disable=too-many-instance-attributes
 def build_ctx(lab: str, for_instance: bool = False) -> E11Context:
     """Creates a ctx for local use (e11 check) or remote grading (Lambda SSH to student VM).
 
-    When for_instance=True, uses INSTANCE_COURSE_ROOT (/home/ubuntu/spring26) for paths
+    When for_instance=True, uses INSTANCE_COURSE_ROOT (/home/ubuntu/e11-course) for paths
     that will be used on the remote student VM. When False, uses COURSE_ROOT (Path.home())
     for local execution on Mac or student VM.
     """

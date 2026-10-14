@@ -1,7 +1,15 @@
-Changes from last year:
-=======================
+Changes from 2025 to 2026
+=========================
+* We migrated from Ubuntu 24.04 to Ubuntu 26.04 LTS
+* We migrated from Python 3.13 to Python 3.14.
+* We migrated from `poetry` to `uv` as our package manager.
+* [lab7](lab7.md) and [lab8](lab8.md) were rewritten to use a Raspberry PI to address continuing device availability problems with the Adafruit MEMENTO.
+* [lab7](lab7.md) and [lab8](lab8.md) now use Python3.14 no longer use Circuit Python.
+
+Changes from 2024-2025
+======================
 * We moved from AWS Linux to Ubuntu 24.04 Linux. We did this because there are more online tutorials for Ubuntu Linux than for AWS Linux, and because Ubuntu Linux is available on more platforms (e.g. Raspberry PI or [MacOS](https://dev.to/ryfazrin/how-to-run-ubuntu-on-macos-like-wsl-wsl-style-experience-4cd4)).
-* We have a script [etc/install-e11](../etc/install-e11) that configures Ubuntu 24.04 for the class
+* We have a script [etc/install-e11](../etc/install-e11) that configures for the class
 * We created a new command, `e11`, for course VM management.
 * We now use [`pipx`](https://pipx.pypa.io/latest/) to manage python commands in the CLI (including e11)
 * The old lab2 (a library-based assigment) was removed.

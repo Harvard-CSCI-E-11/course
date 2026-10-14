@@ -185,7 +185,7 @@ def grade_student_vm(user_email, public_ip, lab:str, pkey_pem:str|None=None, key
     """Run grading by SSHing into the student's VM and executing tests via shared runner.
     Returns the summary of the test results
     """
-    # Build context for remote instance (uses INSTANCE_COURSE_ROOT /home/ubuntu/spring26)
+    # Build context for remote instance (uses INSTANCE_COURSE_ROOT /home/ubuntu/e11-course)
     ctx = build_ctx(lab, for_instance=True)
     if smashed := smash_email(user_email):
         ctx.smashedemail = smashed

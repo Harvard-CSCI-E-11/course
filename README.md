@@ -15,6 +15,10 @@ $ git clone https://Harvard-CSCI-E-11/spring26.git
 $ spring26/etc/install-e11
 ```
 
+See [Student internal documentation](student_internal_documentation.md) for
+how the course checkout, the installed `e11` command, and `e11 update` fit
+together.
+
 The student labs are identified:
 
 |Lab |Due |Description | E-11 Topics  |

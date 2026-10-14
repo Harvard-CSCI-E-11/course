@@ -1,5 +1,5 @@
 #!/bin/sh
-set -e
+# set -e
 
 # Only touch files that are staged for commit
 files="$(git diff --cached --name-only --diff-filter=ACMR)"
@@ -9,4 +9,4 @@ files="$(git diff --cached --name-only --diff-filter=ACMR)"
 etc/fix_trailing_whitespace.py $files
 
 # Re-stage in case the fixer modified them
-git add $files
+for fn in $files ; do git add "$fn" ; done

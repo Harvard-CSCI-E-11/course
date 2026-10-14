@@ -44,7 +44,7 @@ doc/e11.1:  .venv/pyvenv.cfg
 	poetry run argparse-manpage --module e11.main --function get_parser \
 		--author "Simson L. Garfinkel" \
 		--project-name e11 \
-		--url https://github.com/Harvard-CSCI-E-11/spring26.git > doc/e11.1
+		--url https://github.com/Harvard-CSCI-E-11/e11-course.git > doc/e11.1
 
 man: doc/e11.1
 	install -d $$HOME/.local/share/man/man1/

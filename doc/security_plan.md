@@ -8,11 +8,11 @@
 
 
 CSCI E-11 Courseware Security Plan
-======================
+==================================
 
 The CSCI E-11 labs require students to create and manage virtual machine instances in the Amazon Web Services (AWS) cloud, and to deploy applications onto those instances. To improve the student experience and simplify grading, we have created a courseware package that performs the following tasks:
 
-* Users register with the system using OIDC. Currently only Harvard Key is supported, although there are plans to add support for login with Google and GitHub.
+* Registers users with OIDC. Harvard Key is currently supported, although there are plans to add support for login with Google and GitHub.
 * Performs initial configuration of the student's instance, registers the student instance with the courseware system, and creates DNS names for the student's instance in the csci-e-11.org domain. (Required so that the students can obtain Let's Encrypt TLS certificates.)
 * Providers starter code for all of the labs.
 * Provides a mechanism so that instructors can log into the student instance for troubling shooting, and gives the student the ability to enable or disable access.
@@ -26,7 +26,7 @@ System Elements
 
 The CSCI E-11 courseware consists of:
 
-* The https://github.com/Harvard-CSCI-E-11/spring26 github repo which stores all software and configuration information.
+* The https://github.com/Harvard-CSCI-E-11/e11-student github repo which stores all software and configuration information.
 
 * The `e11` Python module which is installed as the `e11` command on the student's instance using the `pipx` command.
 
