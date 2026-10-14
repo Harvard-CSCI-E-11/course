@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-VERSION = "spring26"
+VERSION = "e11-course"
 COURSE_NAME = 'CSCI E-11'
 COURSE_DOMAIN = 'csci-e-11.org'
 COURSE_KEY_LEN = 6

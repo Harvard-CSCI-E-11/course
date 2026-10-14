@@ -48,7 +48,7 @@ install:
 	uv tool install --force ./etc/e11-cli
 
 clean-all:
-	for name in node_modules .venv __pycache__ .pytest_cache .aws-sam '*.egg-info' ; do find . -type d -name "$$name" -print0 | xargs -0 rm -rf ; done
+	for name in node_modules .venv __pycache__ .pytest_cache .aws-sam '*.egg-info' coverage.xml htmlcov; do find . -type d -name "$$name" -print0 | xargs -0 rm -rf ; done
 	/bin/rm -f $(GENERATED_REQUIREMENTS)
 
 distclean-all: clean-all

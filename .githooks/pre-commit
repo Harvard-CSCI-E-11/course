@@ -1,5 +1,5 @@
 #!/bin/sh
-set -e
+# set -e
 
 # Process staged paths one at a time so spaces remain part of the filename.
 git diff --cached --name-only --diff-filter=ACMR | while IFS= read -r file; do

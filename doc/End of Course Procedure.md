@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # End of Course Procedure
 
 This procedure preserves the completed course, removes student DNS records, and
@@ -24,6 +25,42 @@ checklist](https://github.com/Harvard-CSCI-E-11/spring27/issues/64).
    it, and preserve its output before authorizing deletion.
 
 ## 2. Back up DynamoDB
+=======
+End of Course Procedure
+=======================
+
+Goals:
+-----
+* Preserve the completed course
+* Removes student DNS records
+* Prepare the infrastructure for the next class.
+
+This procedure is intentionally conservative: the backup and review gates must be complete before any deletion.
+
+The umbrella tracking checklist is
+[Spring 2027 preparation and rollover checklist](https://github.com/Harvard-CSCI-E-11/spring27/issues/64).
+
+Elements:
+--------
+DNS cleanup program - `etc/e11-cli/e11/e11admin/end-of-term/cleanup_dns.py`.
+
+* Creates a reviewable plan from an explicit list of student names.
+* Applying that plan requires its SHA-256 hash and verifies the AWS account, hosted zone, and live record sets.
+* Does not apply a plan until an independent reviewer has approved the exact file.
+
+Checklist
+---------
+
+### 1. Assign responsibility and schedule downtime
+
+1. Assign one operator and one independent reviewer.
+2. Make sure grades are submitted!
+3. Record the repository commit, AWS account ID, region, hosted-zone ID, and deployed stack versions.
+4. Do not combine rehearsal and production cleanup. Complete the dry run, review
+   it, and preserve its output before authorizing deletion.
+
+### 2. Back up DynamoDB
+>>>>>>> dev-slg
 
 Authenticate to the intended production account and verify the caller identity
 before creating the backup. The destination must be a new directory on encrypted
@@ -50,8 +87,12 @@ Before continuing:
 
 - Confirm the manifest contains every intended table.
 - Compare manifest item counts with fresh production counts.
+<<<<<<< HEAD
 - Copy the backup to the approved encrypted archive and recheck its SHA-256
   checksums.
+=======
+- Copy the backup to the approved encrypted archive and recheck its SHA-256 checksums.
+>>>>>>> dev-slg
 - Restore it into empty DynamoDB Local tables with matching key schemas, then run
   the restore a second time to prove idempotence.
 - Preserve the backup location, manifest hash, commands, results, operator, and
@@ -69,7 +110,11 @@ Restore performs idempotent upserts: an existing record with the same partition
 and sort key is replaced. It does not delete destination records that are absent
 from the backup.
 
+<<<<<<< HEAD
 ## 3. Export the Route 53 zone before cleanup
+=======
+### 3. Export the Route 53 zone before cleanup
+>>>>>>> dev-slg
 
 Save the complete hosted-zone record-set response before preparing a delete list.
 This export is the source needed to reconstruct aliases, weighted records, latency
@@ -88,7 +133,11 @@ Route 53 records do not contain a last-used timestamp. Unless DNS query logging
 was enabled during the course, the last time a student used a DNS name is unknown.
 A record's existence or modification time must not be reported as usage.
 
+<<<<<<< HEAD
 ## 4. Build the student-name list
+=======
+### 4. Build the student-name list
+>>>>>>> dev-slg
 
 Create a dated file outside Git containing **only** student-owned fully qualified
 DNS names, one name per line. Derive it from the final roster and exported DNS
@@ -101,7 +150,11 @@ The planner rejects names outside the zone, the zone apex, missing names, SOA/NS
 records, and traffic-policy-instance records. Handle traffic-policy instances
 through their own Route 53 API and a separate review.
 
+<<<<<<< HEAD
 ## 5. Create and review the DNS plan
+=======
+### 5. Create and review the DNS plan
+>>>>>>> dev-slg
 
 From `etc/e11-cli`, set and independently verify the AWS account and hosted-zone
 IDs. These are examples, not trusted production identifiers:

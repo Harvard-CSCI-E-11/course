@@ -52,7 +52,7 @@ def do_register_email(args):
     if not args.email:
         print("Specify --email or a positional email address.", file=sys.stderr)
         sys.exit(2)
-    print("Lab instructions are at https://github.com/Harvard-CSCI-E-11/spring26")
+    print("Lab instructions are at https://github.com/Harvard-CSCI-E-11/e11-course")
     try:
         user = get_user_from_email(args.email)
         if user.course_key is None:

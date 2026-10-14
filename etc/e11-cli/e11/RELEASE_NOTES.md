@@ -156,11 +156,10 @@
 ### Stable student checkout documentation
 
 - Updated student-facing documentation for Spring 2027 and instructed students
-  to clone the annual `spring27` repository into the stable `$HOME/course`
-  checkout directory.
+  to clone the `e11-course` repository into the `$HOME/course` checkout directory.
 - Updated Lab commands, shell prompts, and supporting documentation to use
   `$HOME/course`, `~/course`, or `/home/ubuntu/course` as appropriate.
-- Updated annual repository URLs to `spring27`, repaired the root CI badge and
+- Updated annual repository URLs to `e11-course`, repaired the root CI badge and
   clone URL, and corrected stale leaderboard, Lab 3, and MEMENTO source links.
 - Replaced stale Amazon Linux `/home/ec2-user` examples with Ubuntu's
   `/home/ubuntu` path and corrected the imported Lab 1 Poetry description to
