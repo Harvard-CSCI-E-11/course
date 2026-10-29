@@ -11,6 +11,7 @@ Run these tests through the parent Makefile's email-check target.
 import ast
 import json
 import os
+import re
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
@@ -18,6 +19,7 @@ from email import policy
 from email.parser import BytesParser
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qsl, urljoin, urlsplit
 
 import boto3
 import pytest
@@ -352,6 +354,47 @@ def test_sender_rejects_other_students_recipient(mail_services):
             ["someone-else@example.org"], "Wrong owner", "Private", user_id=user.user_id
         )
     assert len(mail_services.submitted) == 1
+
+
+def test_shared_navigation_works_from_nested_email_message(mail_services):
+    mail_services.accept()
+    user = common.create_new_user(f"navigation-{uuid.uuid4().hex}@example.org")
+    row = email_rows(user)[0]
+    event = login(user)
+    event[RAW_PATH] = "/email/message"
+    event[QUERY] = {"timestamp": row.timestamp}
+    response = home.lambda_handler(event, None)
+    assert response[email_views.STATUS_CODE] == 200
+    links = re.findall(
+        r'<a[^>]*href="([^"]+)"[^>]*>(.*?)</a>', response[email_views.BODY], re.DOTALL
+    )
+    visited = set()
+    for href, label in links:
+        label = label.strip()
+        destination = urlsplit(urljoin("https://app.example.org/email/message", href))
+        if label in {"About", "Terms", "Privacy", "Help", "[terms]"}:
+            follow = create_lambda_event(
+                destination.path,
+                qs=dict(parse_qsl(destination.query)),
+                cookies=event[COOKIES],
+            )
+            assert home.lambda_handler(follow, None)[email_views.STATUS_CODE] == 200
+            visited.add(label)
+        elif label == "Logout":
+            assert destination.path == "/logout"
+            visited.add(label)
+        elif label == "Harvard CSCI E-11":
+            assert destination.path == "/"
+            visited.add(label)
+    assert visited == {
+        "About",
+        "Terms",
+        "Privacy",
+        "Help",
+        "[terms]",
+        "Logout",
+        "Harvard CSCI E-11",
+    }
 
 
 def post_action(user, action, payload):
