@@ -1,5 +1,15 @@
 # Release notes
 
+## 2026-10-28: Public DNS query logging
+
+- Added one standalone script and Make targets to enable and verify public DNS
+  logging with CloudWatch Standard and 180-day retention, using existing AWS
+  credentials. Re-running setup reuses existing resources.
+- Added terminal/CSV/JSON views of individual DNS queries and hostname summaries,
+  including selection of a student's base and lab hostnames. S3 export is deferred.
+- Fixed public-key test fixtures that still used `spring26` instead of the current
+  course directory, and isolated the configured root to avoid host-dependent results.
+
 ## 2026-10-28: Export-based DNS cleanup
 
 - `make dns-plan` now selects every name in the saved Route 53 export that is

@@ -192,6 +192,22 @@ An empty plan succeeds without AWS calls.
 Run `make dns-test` for focused offline tests and `make dns-lint` for DNS code
 checks. Live DNS deletion is a separate operator action.
 
+## DNS query logging
+
+The standalone `e11/e11admin/dns_logging.py` script enables public Route 53 query
+logging in CloudWatch Standard with 180-day retention and verifies a test query.
+Run `make dns-logging-enable DNS_ZONE_ID=HOSTED_ZONE_ID` with existing AWS
+credentials. Use `make dns-logging-status`, `make dns-logs`, and
+`make dns-log-report` for configuration, individual lookups, and per-hostname
+summaries. These targets also work from the Git root. S3 export is deferred.
+
+[DNS query logging](../../doc/Enable%20DNS%20Logging.md) documents all environment
+variables (`AWS_PROFILE`, `DNS_PROFILE`, `DNS_ZONE_ID`, `DNS_ACCOUNT_ID`,
+`DNS_DOMAIN`, `DNS_LOG_GROUP`, `DNS_LOG_SINCE`, `DNS_LOG_UNTIL`, `DNS_LOG_NAME`,
+`DNS_LOG_STUDENT`, `DNS_LOG_LIMIT`, and `DNS_LOG_FORMAT`), costs, permissions,
+retention, and the limits of interpreting DNS queries as student activity.
+Run `make dns-logging-test` and `make dns-logging-lint` for focused validation.
+
 # DynamoDB Database Structure
 
 The E11 system uses four DynamoDB tables:

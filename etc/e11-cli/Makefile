@@ -11,7 +11,7 @@ REQ      := bin/DynamoDBLocal.jar
 .PHONY: pytest lint clean check test man
 
 .venv/pyvenv.cfg: pyproject.toml Makefile
-	uv sync --locked
+	@uv sync --locked
 
 lint: .venv/pyvenv.cfg
 	uv run --locked pylint e11
@@ -134,6 +134,31 @@ dns-test: .venv/pyvenv.cfg
 dns-lint: .venv/pyvenv.cfg
 	uv run --locked pylint $(DNS_CLEANUP)
 	uv run --locked pyright $(DNS_CLEANUP)
+
+# Public DNS logging uses AWS_PROFILE/DNS_PROFILE and the DNS destination above.
+# DNS_LOG_GROUP overrides the existing/default group; retention is fixed at 180d.
+# DNS_LOG_SINCE/UNTIL bound reports, NAME/STUDENT select hostnames, LIMIT caps rows,
+# and FORMAT selects table, csv, or json. See README.md for exact variable names.
+DNS_LOGGING := e11/e11admin/dns_logging.py
+DNS_LOG_FORMAT ?= table
+DNS_LOG_ARGS = --domain "$(DNS_DOMAIN)" --zone-id "$(DNS_ZONE_ID)" --format "$(DNS_LOG_FORMAT)" $(if $(DNS_ACCOUNT_ID),--account-id "$(DNS_ACCOUNT_ID)") $(if $(DNS_PROFILE),--profile "$(DNS_PROFILE)") $(if $(DNS_LOG_GROUP),--log-group "$(DNS_LOG_GROUP)")
+DNS_LOG_VIEW_ARGS = $(if $(DNS_LOG_SINCE),--since "$(DNS_LOG_SINCE)") $(if $(DNS_LOG_UNTIL),--until "$(DNS_LOG_UNTIL)") $(if $(DNS_LOG_NAME),--name "$(DNS_LOG_NAME)") $(if $(DNS_LOG_STUDENT),--student "$(DNS_LOG_STUDENT)") $(if $(DNS_LOG_LIMIT),--limit "$(DNS_LOG_LIMIT)")
+
+.PHONY: dns-logging-enable dns-logging-status dns-logging-verify dns-logs dns-log-report dns-logging-test dns-logging-lint
+dns-logging-enable dns-logging-status dns-logging-verify: .venv/pyvenv.cfg
+	@test -n "$(DNS_ZONE_ID)" || { echo "Set DNS_ZONE_ID to the public hosted-zone ID." >&2; exit 1; }
+	@uv run --locked python $(DNS_LOGGING) $(patsubst dns-logging-%,%,$@) $(DNS_LOG_ARGS)
+
+dns-logs dns-log-report: .venv/pyvenv.cfg
+	@test -n "$(DNS_ZONE_ID)" || { echo "Set DNS_ZONE_ID to the public hosted-zone ID." >&2; exit 1; }
+	@uv run --locked python $(DNS_LOGGING) $(if $(filter dns-logs,$@),events,report) $(DNS_LOG_ARGS) $(DNS_LOG_VIEW_ARGS)
+
+dns-logging-test: .venv/pyvenv.cfg
+	uv run --locked pytest -q tests/test_dns_logging.py
+
+dns-logging-lint: .venv/pyvenv.cfg
+	uv run --locked pylint $(DNS_LOGGING)
+	uv run --locked pyright $(DNS_LOGGING)
 
 
 .PHONY: start_local_dynamodb stop_local_dynamodb list-tables dump-demo-tables

@@ -39,6 +39,9 @@ check-all:
 dns-plan dns-delete dns-test dns-lint:
 	$(MAKE) -C etc/e11-cli $@
 
+dns-logging-enable dns-logging-status dns-logging-verify dns-logs dns-log-report dns-logging-test dns-logging-lint:
+	@$(MAKE) --silent --no-print-directory -C etc/e11-cli $@
+
 update-all:
 	for dir in $(PYPROJECT_DIRS) ; do (echo "=== $$dir ===" ; cd $$dir && uv lock --upgrade) ; done
 
@@ -58,3 +61,4 @@ clean-all:
 
 distclean-all: clean-all
 .PHONY: lint-all check-all update-all sync-all lock-all install clean-all distclean-all dns-plan dns-delete dns-test dns-lint
+.PHONY: dns-logging-enable dns-logging-status dns-logging-verify dns-logs dns-log-report dns-logging-test dns-logging-lint
