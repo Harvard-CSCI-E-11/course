@@ -147,6 +147,51 @@ The backup directory contains sensitive course data. Keep it out of the
 repository. Stop application writes during the final rollover backup because
 consistent DynamoDB scans are not a cross-table snapshot.
 
+## End-of-course DNS cleanup
+
+After exporting the complete Route 53 zone in
+[End of Course Procedure](../../doc/End%20of%20Course%20Procedure.md), review
+`dns-keep.txt` and run these targets from this directory or the Git root:
+
+```bash
+export DDB_DIR="$HOME/e11-backup-$(date -I)"
+export DNS_ZONE_ID=HOSTED_ZONE_ID
+export DNS_ACCOUNT_ID=ACCOUNT_ID
+make dns-plan
+# Review the displayed deletions before running:
+make dns-delete
+```
+
+The planner reads the saved export without contacting AWS. Every name not matched
+by the keep-list is selected, with all its record types and routing fields.
+Keep-list entries are case-insensitive DNS names or shell globs (`*`, `?`, `[abc]`);
+trailing dots are optional, `*` spans dots, and blank lines and full-line `#`
+comments are ignored. The apex must be kept. Traffic-policy-instance records need
+separate Route 53 handling if selected.
+
+| Variable | Purpose and default |
+|----------|---------------------|
+| `DDB_DIR` | Backup prefix; the step-3 export is `$(DDB_DIR)-route53.json` |
+| `DNS_ZONE_EXPORT` | Override the export path; defaults to `$(DDB_DIR)-route53.json` |
+| `DNS_KEEP` | Keep-list path; defaults to `dns-keep.txt` in `etc/e11-cli` |
+| `DNS_PLAN` | Saved plan; defaults to `$(DNS_ZONE_EXPORT).delete-plan.json` |
+| `DNS_DOMAIN` | Hosted-zone name; defaults to `csci-e-11.org` |
+| `DNS_ZONE_ID` | Required hosted-zone ID; accepts bare IDs or `/hostedzone/ID` |
+| `DNS_ACCOUNT_ID` | Required AWS account ID, verified before deletion |
+| `AWS_PROFILE` | AWS credential profile, using normal AWS credential resolution |
+| `DNS_PROFILE` | Optional profile override for this program |
+
+Use absolute paths for overrides when invoking targets from the Git root.
+Re-running `dns-plan` replaces its saved plan. `dns-delete` uses that exact plan,
+requires an unchanged keep-list, verifies live records at every planned name,
+and waits for each deletion batch to become `INSYNC`. It needs no hash or extra
+confirmation. New names created after the export are not added to the plan.
+After a partial failure, export again and create a fresh plan for the remainder.
+An empty plan succeeds without AWS calls.
+
+Run `make dns-test` for focused offline tests and `make dns-lint` for DNS code
+checks. Live DNS deletion is a separate operator action.
+
 # DynamoDB Database Structure
 
 The E11 system uses four DynamoDB tables:

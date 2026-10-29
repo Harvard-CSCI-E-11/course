@@ -74,12 +74,13 @@ consistent snapshot across pages or tables.
 ## End-of-course DNS cleanup
 
 See [End of Course Procedure](../../../../doc/End%20of%20Course%20Procedure.md)
-for the backup, review, and approval sequence. From `etc/e11-cli`, use
-`make dns-plan` with `DNS_DOMAIN`, `DNS_ZONE_ID`, `DNS_ACCOUNT_ID`, `DNS_NAMES`,
-and `DNS_PLAN`. The planner only reads Route 53 and writes a new exact plan.
-`make dns-apply` additionally requires `DNS_SHA256` from the independently
-approved plan and rechecks the account, hosted zone, and live records before
-deleting. The old broad keep-list deletion interface is retired.
+for the backup and deletion sequence. From the Git root or `etc/e11-cli`, use
+`make dns-plan` to select every name in the step-3 Route 53 export that does not
+match `dns-keep.txt`. It displays each deletion and saves complete record sets.
+`make dns-delete` applies that saved plan after checking the keep-list, account,
+hosted zone, and live records, then waits for `INSYNC`. It requires no copied hash
+or interactive confirmation. See the [CLI README](../../README.md#end-of-course-dns-cleanup)
+for variables and path overrides. No student-name list is needed.
 
 New grading-history command:
 ```bash

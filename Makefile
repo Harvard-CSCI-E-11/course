@@ -34,6 +34,11 @@ check-all:
 	$(MAKE) lint-all
 	$(MAKE) -C etc/e11-cli check-all
 
+# DNS settings are documented in etc/e11-cli/README.md; command-line variables
+# and exported environment variables are passed to the administration Makefile.
+dns-plan dns-delete dns-test dns-lint:
+	$(MAKE) -C etc/e11-cli $@
+
 update-all:
 	for dir in $(PYPROJECT_DIRS) ; do (echo "=== $$dir ===" ; cd $$dir && uv lock --upgrade) ; done
 
@@ -52,4 +57,4 @@ clean-all:
 	/bin/rm -f $(GENERATED_REQUIREMENTS)
 
 distclean-all: clean-all
-.PHONY: lint-all check-all update-all sync-all lock-all install clean-all distclean-all
+.PHONY: lint-all check-all update-all sync-all lock-all install clean-all distclean-all dns-plan dns-delete dns-test dns-lint

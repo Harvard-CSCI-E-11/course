@@ -1,5 +1,14 @@
 # Release notes
 
+## 2026-10-28: Export-based DNS cleanup
+
+- `make dns-plan` now selects every name in the saved Route 53 export that is
+  not matched by `dns-keep.txt`, including shell globs, and saves exact deletions.
+- `make dns-delete` applies that saved plan without a copied hash, checking the
+  keep-list, AWS account, hosted zone, and live records before writing.
+- Both targets work from the Git root. The default keep-list is included in
+  version control and preserves stage while allowing simsong to be deleted.
+
 ## 2026-09-27: End-of-course cleanup commands
 
 - Added Makefile entry points for DynamoDB backup, view, and guarded restore.

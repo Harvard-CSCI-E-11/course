@@ -11,3 +11,4 @@ bin/*.zip
 var/
 logs/
 *.txt
+!dns-keep.txt

@@ -108,18 +108,32 @@ ddb-restore: .venv/pyvenv.cfg
 	@test -n "$(DDB_DIR)" && test "$(DDB_ALLOW_RESTORE)" = YES
 	@uv run --locked e11admin restore "$(DDB_DIR)" $(if $(DDB_TABLE),--table "$(DDB_TABLE)")
 
-# DNS cleanup requires an explicit student-name list and a reviewed plan hash.
+# DNS cleanup: DDB_DIR supplies the step-3 export prefix. DNS_ZONE_EXPORT can
+# override that input; DNS_KEEP names the keep-list and DNS_PLAN the saved plan.
+# DNS_DOMAIN, DNS_ZONE_ID, and DNS_ACCOUNT_ID select and verify the destination.
+# AWS_PROFILE uses normal AWS credentials; DNS_PROFILE optionally overrides it.
+DNS_DOMAIN ?= csci-e-11.org
+DNS_KEEP ?= dns-keep.txt
+DNS_ZONE_EXPORT ?= $(if $(DDB_DIR),$(DDB_DIR)-route53.json)
+DNS_PLAN ?= $(if $(DNS_ZONE_EXPORT),$(DNS_ZONE_EXPORT).delete-plan.json)
 DNS_CLEANUP := e11/e11admin/end-of-term/cleanup_dns.py
-DNS_ARGS = --domain "$(DNS_DOMAIN)" --zone-id "$(DNS_ZONE_ID)" --account-id "$(DNS_ACCOUNT_ID)" $(if $(DNS_PROFILE),--profile "$(DNS_PROFILE)")
+DNS_ARGS = --domain "$(DNS_DOMAIN)" --zone-id "$(DNS_ZONE_ID)" --account-id "$(DNS_ACCOUNT_ID)" --keep "$(DNS_KEEP)" $(if $(DNS_PROFILE),--profile "$(DNS_PROFILE)")
 
-.PHONY: dns-plan dns-apply
+.PHONY: dns-plan dns-delete dns-test dns-lint
 dns-plan: .venv/pyvenv.cfg
-	@test -n "$(DNS_DOMAIN)" && test -n "$(DNS_ZONE_ID)" && test -n "$(DNS_ACCOUNT_ID)" && test -n "$(DNS_NAMES)" && test -n "$(DNS_PLAN)"
-	uv run --locked python $(DNS_CLEANUP) $(DNS_ARGS) --names "$(DNS_NAMES)" --plan "$(DNS_PLAN)" $(if $(DNS_ZONE_EXPORT),--zone-export "$(DNS_ZONE_EXPORT)")
+	@test -n "$(DNS_DOMAIN)" && test -n "$(DNS_ZONE_ID)" && test -n "$(DNS_ACCOUNT_ID)" && test -n "$(DNS_ZONE_EXPORT)" && test -n "$(DNS_PLAN)" || { echo "Set DDB_DIR (or DNS_ZONE_EXPORT), DNS_ZONE_ID, and DNS_ACCOUNT_ID." >&2; exit 1; }
+	@uv run --locked python $(DNS_CLEANUP) $(DNS_ARGS) --zone-export "$(DNS_ZONE_EXPORT)" --plan "$(DNS_PLAN)"
 
-dns-apply: .venv/pyvenv.cfg
-	@test -n "$(DNS_DOMAIN)" && test -n "$(DNS_ZONE_ID)" && test -n "$(DNS_ACCOUNT_ID)" && test -n "$(DNS_PLAN)" && test -n "$(DNS_SHA256)"
-	uv run --locked python $(DNS_CLEANUP) $(DNS_ARGS) --apply-plan "$(DNS_PLAN)" --sha256 "$(DNS_SHA256)"
+dns-delete: .venv/pyvenv.cfg
+	@test -n "$(DNS_DOMAIN)" && test -n "$(DNS_ZONE_ID)" && test -n "$(DNS_ACCOUNT_ID)" && test -n "$(DNS_PLAN)" || { echo "Set DDB_DIR (or DNS_PLAN), DNS_ZONE_ID, and DNS_ACCOUNT_ID." >&2; exit 1; }
+	@uv run --locked python $(DNS_CLEANUP) $(DNS_ARGS) --apply-plan "$(DNS_PLAN)"
+
+dns-test: .venv/pyvenv.cfg
+	uv run --locked pytest -q tests/test_cleanup_dns.py
+
+dns-lint: .venv/pyvenv.cfg
+	uv run --locked pylint $(DNS_CLEANUP)
+	uv run --locked pyright $(DNS_CLEANUP)
 
 
 .PHONY: start_local_dynamodb stop_local_dynamodb list-tables dump-demo-tables
