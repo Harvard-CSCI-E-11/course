@@ -201,11 +201,22 @@ credentials. Use `make dns-logging-status`, `make dns-logs`, and
 `make dns-log-report` for configuration, individual lookups, and per-hostname
 summaries. These targets also work from the Git root. S3 export is deferred.
 
-[DNS query logging](../../doc/Enable%20DNS%20Logging.md) documents all environment
-variables (`AWS_PROFILE`, `DNS_PROFILE`, `DNS_ZONE_ID`, `DNS_ACCOUNT_ID`,
-`DNS_DOMAIN`, `DNS_LOG_GROUP`, `DNS_LOG_SINCE`, `DNS_LOG_UNTIL`, `DNS_LOG_NAME`,
-`DNS_LOG_STUDENT`, `DNS_LOG_LIMIT`, and `DNS_LOG_FORMAT`), costs, permissions,
-retention, and the limits of interpreting DNS queries as student activity.
+The AWS profile and DNS destination variables are described above. Logging adds:
+
+| Variable | Purpose/default |
+|----------|-----------------|
+| `DNS_LOG_GROUP` | Existing destination, or `/aws/route53/DOMAIN` for new logging |
+| `DNS_LOG_SINCE` | Lookback such as `24h`; defaults to `1h` for events, `30d` for reports |
+| `DNS_LOG_UNTIL` | ISO 8601 end time with time zone; defaults to now |
+| `DNS_LOG_NAME` | One short or fully qualified hostname |
+| `DNS_LOG_STUDENT` | Student hostname stem including its `-labN` names; excludes `DNS_LOG_NAME` |
+| `DNS_LOG_LIMIT` | Maximum rows, 1–10,000; defaults to 100 events or 10,000 report rows |
+| `DNS_LOG_FORMAT` | Output format: `table` (default), `csv`, or `json` |
+
+[DNS query logging](../../doc/Enable%20DNS%20Logging.md) covers costs, permissions,
+retention, and the limits of interpreting DNS queries as student activity. For
+logging, `DNS_ACCOUNT_ID` is optional and `DNS_LOG_GROUP` can reuse an existing
+destination; `DNS_ZONE_ID` remains required.
 Run `make dns-logging-test` and `make dns-logging-lint` for focused validation.
 
 # DynamoDB Database Structure
