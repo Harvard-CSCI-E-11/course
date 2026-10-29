@@ -725,7 +725,7 @@ class TestDoGrade:
 
         sent = {}
 
-        def mock_send_email(to_addrs, email_subject, email_body):
+        def mock_send_email(to_addrs, email_subject, email_body, *, user_id):
             sent["to"] = to_addrs
             sent["subject"] = email_subject
             sent["body"] = email_body

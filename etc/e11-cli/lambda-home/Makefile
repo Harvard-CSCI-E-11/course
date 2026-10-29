@@ -57,6 +57,10 @@ check: vend-e11 lint
 	@echo "--- Running tests with pytest ---"
 	uv run --locked pytest -q --cov=. --cov-report=term --cov-report=xml --junitxml=junit.xml -o junit_family=legacy --log-cli-level=DEBUG tests/
 
+.PHONY: test-email
+test-email: vend-e11
+	uv run --locked pytest tests/test_email_archive.py
+
 # This target generates the requirements.txt for SAM to use
 src/requirements.txt: uv.lock pyproject.toml
 	@echo "--- Exporting requirements.txt from uv ---"

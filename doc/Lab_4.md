@@ -196,17 +196,13 @@ In one window type:
 
 `$ cd ~/course/lab4`
 
-Now lets use `poetry`, the python package manager, to install all the dependencies we need.
+Use uv to install the dependencies recorded in the lab’s lock file.
 
-`$ poetry install`
-
-Now we update the python environment based on the lock files in \~/lab4/
-
-`$ poetry sync`
+`$ uv sync --locked`
 
 And now we run the application from the command line to make sure it is working before we automate the running of the application.
 
-`$ poetry run flask --app server.main:app run --debug --port 8004 --reload`
+`$ uv run --locked flask --app server.main:app run --debug --port 8004 --reload`
 
 In a second window type:
 
@@ -425,11 +421,13 @@ Here’s what it looks like on a good system:
 
    **`sudo systemctl stop lab4`**
 
-   **`/home/ec2-user/course/lab4/venv/bin/gunicorn --reload -w 4 -b 127.0.0.1:8004 app:app`**
+   **`cd ~/course/lab4`**
 
-   Remember to restart the lab4 service when you have it working\!
+   **`.venv/bin/gunicorn --reload -w 2 -b 127.0.0.1:8004 server.main:app`**
 
-   **`sudo systemctl stop lab4`**
+   Press Control-C to stop the manual server, then restart the lab4 service:
+
+   **`sudo systemctl restart lab4`**
 
 6. Use the `git diff` command to see which lines you’ve changed in the git repo.
 7. Post a question in the [class forum on Canvas.](https://canvas.harvard.edu/courses/150159/discussion_topics)

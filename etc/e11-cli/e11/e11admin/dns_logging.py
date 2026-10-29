@@ -151,8 +151,9 @@ def query_text(target: Target, *, report: bool, name: str | None = None,
         clauses.append(f"filter tolower(queryName) like /^{pattern}\\.?$/")
     if report:
         clauses.extend([
+            'fields rtrim(tolower(queryName), ".") as hostname',
             "stats count(*) as queries, latest(queryTimestamp) as last_seen, "
-            'sum(strcontains(responseCode, "NXDOMAIN")) as nxdomain by queryName as hostname',
+            'sum(strcontains(responseCode, "NXDOMAIN")) as nxdomain by hostname',
             "sort last_seen desc",
         ])
     else:
@@ -282,11 +283,17 @@ class DnsLogging:
         if not self.target.name_servers:
             raise LoggingError("public hosted zone has no authoritative name servers for verification")
         deadline = time.monotonic() + timeout
+        attempt = 0
         while True:
             try:
-                dns.resolver.resolve_at(self.target.name_servers[0], probe, "A", lifetime=10)
+                server = self.target.name_servers[attempt % len(self.target.name_servers)]
+                dns.resolver.resolve_at(server, probe, "A", lifetime=10)
             except dns.resolver.NXDOMAIN:
                 pass  # Query the authority directly: recursive negative caches cannot hide this probe.
+            except dns.exception.DNSException as error:
+                print(f"DNS probe through {server} failed: {error}; checking logs before retrying.",
+                      file=sys.stderr, flush=True)
+            attempt += 1
             for page in self.logs.get_paginator("filter_log_events").paginate(
                 logGroupName=self.target.log_group, startTime=start, filterPattern=f'"{probe}"'
             ):
@@ -335,7 +342,8 @@ def render(rows: list[BaseModel], output_format: str, model: type[BaseModel]) ->
         stream = io.StringIO()
         writer = csv.DictWriter(stream, fieldnames=headers)
         writer.writeheader()
-        writer.writerows(values)
+        writer.writerows({key: "'" + value if isinstance(value, str) and value.startswith(("=", "+", "-", "@", "\t", "\r", "\n")) else value
+                          for key, value in row.items()} for row in values)
         return stream.getvalue().rstrip()
     return tabulate([[row.get(key, "") for key in headers] for row in values], headers=headers)
 

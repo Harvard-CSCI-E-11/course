@@ -179,7 +179,6 @@ def mock_ses(monkeypatch):
     from e11 import e11_common
 
     monkeypatch.setattr(e11_common, "ses_client", mock_ses_client)
-    monkeypatch.setattr(home, "ses_client", mock_ses_client)
 
     return sent_emails
 
@@ -239,7 +238,7 @@ def test_queue_grade_handles_sqs_event(
     monkeypatch.setattr(e11_common, "add_grade", mock_add_grade)
 
     # Mock send_email2 - it's imported from e11_common in api.py
-    def mock_send_email_api(to_addrs, email_subject, email_body):
+    def mock_send_email_api(to_addrs, email_subject, email_body, *, user_id):
         mock_ses.append(
             {
                 "Source": "noreply@example.com",

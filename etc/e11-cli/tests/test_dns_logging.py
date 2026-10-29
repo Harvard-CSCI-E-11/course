@@ -153,6 +153,8 @@ def test_query_selection_is_exact_and_student_includes_labs():
     text = dl.query_text(TARGET, report=True, student="alice")
     assert r"/^alice(-lab[0-9]+)?\.csci\-e\-11\.org\.?$/" in text
     assert "NXDOMAIN" in text and "latest(queryTimestamp)" in text
+    assert 'fields rtrim(tolower(queryName), ".") as hostname' in text
+    assert "by hostname" in text
     for name in ["bad/name", 'bad"name', "outside.example.org"]:
         with pytest.raises(dl.LoggingError):
             dl.query_text(TARGET, report=False, name=name)
@@ -246,6 +248,41 @@ def test_verification_requires_the_actual_probe_event(service, monkeypatch, obse
         else:
             with pytest.raises(dl.LoggingError, match="not observed"):
                 service.verify(timeout=0)
+
+
+def test_verification_retries_transient_dns_failure_on_another_authority(service, monkeypatch):
+    monkeypatch.setattr(dl, "uuid4", lambda: UUID(int=0))
+    service.target.name_servers = ["ns.example.org", "ns2.example.org"]
+    probe = "e11-log-check-" + "0" * 32 + "." + DOMAIN
+    servers = []
+
+    def lookup(server, _name, _query_type, lifetime):
+        assert lifetime == 10
+        servers.append(server)
+        if len(servers) == 1:
+            raise dl.dns.exception.Timeout
+        raise dl.dns.resolver.NXDOMAIN
+
+    monkeypatch.setattr(dl.dns.resolver, "resolve_at", lookup)
+    with Stubber(service.route53) as route, Stubber(service.logs) as logs:
+        _config(route)
+        _group(logs)
+        for events in [[], [{dl.MESSAGE: f"1.0 2026-10-28T18:00:00Z {ZONE} {probe} A NXDOMAIN UDP IAD1 192.0.2.1 -"}]]:
+            logs.add_response("filter_log_events", {dl.EVENTS: events}, {
+                dl.LOG_GROUP_NAME: GROUP, START_TIME: ANY, FILTER_PATTERN: f'"{probe}"',
+            })
+        assert "Verified: observed DNS query" in service.verify(timeout=20)
+    assert servers == ["ns.example.org", "ns2.example.org"]
+
+
+def test_csv_escapes_formula_names_without_changing_json():
+    row = dl.QueryEvent(timestamp=NOW, hostname="=1+2.csci-e-11.org", query_type="A",
+                        response_code="NXDOMAIN", resolver_ip="192.0.2.1")
+    import csv
+    import io
+    rendered = list(csv.DictReader(io.StringIO(dl.render([row], "csv", dl.QueryEvent))))
+    assert rendered[0]["hostname"] == "'" + row.hostname
+    assert json.loads(dl.render([row], "json", dl.QueryEvent))[0]["hostname"] == row.hostname
 
 
 @pytest.mark.parametrize("root", [True, False])

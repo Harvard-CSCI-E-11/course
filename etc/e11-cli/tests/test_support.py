@@ -47,7 +47,7 @@ def config_file(temp_home):
 @pytest.fixture
 def repo_dir(temp_home):
     """Create a repo directory structure."""
-    repo = temp_home / support.REPO_YEAR / "etc"
+    repo = temp_home / support.COURSE_DIRECTORY / "etc"
     repo.mkdir(parents=True)
     return repo
 
@@ -108,7 +108,7 @@ class TestAuthorizedKeysPath:
 class TestBotPubkeyPath:
     """Test cases for bot_pubkey_path() function."""
 
-    def test_bot_pubkey_path_finds_in_versioned_course(self, repo_dir, bot_key_file):
+    def test_bot_pubkey_path_finds_in_course(self, repo_dir, bot_key_file):
         """Test bot_pubkey_path finds the key in the current course directory."""
         result = support.bot_pubkey_path()
         assert result == bot_key_file
@@ -126,7 +126,7 @@ class TestBotPubkeyPath:
         assert result == key_file
         assert result.exists()
 
-    def test_bot_pubkey_path_prioritizes_versioned_course_over_gits(self, repo_dir, temp_home, bot_key_file):
+    def test_bot_pubkey_path_prioritizes_course_over_gits(self, repo_dir, temp_home, bot_key_file):
         """Test bot_pubkey_path prefers the current course directory over gits."""
         # Create key in both locations
         gits_path = temp_home / "gits" / "csci-e-11" / "etc"
@@ -143,6 +143,14 @@ class TestBotPubkeyPath:
         key = course_root / "etc" / support.CSCIE_BOT_KEYFILE
         key.parent.mkdir(parents=True)
         key.write_text("ssh-ed25519 configured-root-key\n")
+        assert support.bot_pubkey_path() == key
+
+    @pytest.mark.parametrize("directory", support.LEGACY_COURSE_DIRECTORIES)
+    def test_bot_pubkey_path_preserves_legacy_versioned_checkout(self, temp_home, directory):
+        """Old checkout names remain usable without defining the default layout."""
+        key = temp_home / directory / "etc" / support.CSCIE_BOT_KEYFILE
+        key.parent.mkdir(parents=True)
+        key.write_text("ssh-ed25519 legacy-key\n")
         assert support.bot_pubkey_path() == key
 
     def test_bot_pubkey_path_raises_when_not_found(self, temp_home):

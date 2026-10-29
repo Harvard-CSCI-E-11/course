@@ -8,6 +8,7 @@ debug
 bin/*.jar
 bin/*_lib
 bin/*.zip
+bin/minio
 var/
 logs/
 *.txt

@@ -33,7 +33,6 @@ from boto3.dynamodb.conditions import Key
 from e11.e11_common import (
     LAB_CONFIG,
     LAB_TIMEZONE,
-    SES_VERIFIED_EMAIL,
     A,
     EmailNotRegistered,
     User,
@@ -41,7 +40,6 @@ from e11.e11_common import (
     convert_dynamodb_item,
     get_user_from_user_id,
     queryscan_table,
-    ses_client,
     users_table,
 )
 from e11.e11core.constants import (
@@ -65,7 +63,7 @@ from e11.main import __version__
 from itsdangerous import BadSignature, SignatureExpired
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
-from . import api, oidc, sessions
+from . import api, email_views, oidc, sessions
 from .api import make_presigned_url, resp_json
 from .common import (
     COOKIE_NAME,
@@ -90,21 +88,6 @@ from .sqs_support import (
 )
 
 LOGGER = get_logger("home")
-
-
-def send_email2(to_addrs: list[str], email_subject: str, email_body: str):
-    r = ses_client.send_email(
-        Source=SES_VERIFIED_EMAIL,
-        Destination={"ToAddresses": to_addrs},
-        Message={
-            "Subject": {"Data": email_subject},
-            "Body": {"Text": {"Data": email_body}},
-        },
-    )
-    LOGGER.info(
-        "send_email2 to=%s subject=%s SES response: %s", to_addrs, email_subject, r
-    )
-    return r
 
 
 LastEvaluatedKey = "LastEvaluatedKey"  # pylint: disable=invalid-name
@@ -147,6 +130,7 @@ env = Environment(
 env.globals["API_PATH"] = API_PATH
 env.globals["version"] = __version__
 env.filters["eastern"] = eastern_filter
+env.filters["email_eastern"] = utc_iso_to_eastern
 env.filters["tojson"] = lambda x: json.dumps(x, default=str) if x is not None else "{}"
 env.globals["GITHUB_REPO_URL"] = GITHUB_REPO_URL
 env.globals["LAB_CONFIG"] = LAB_CONFIG
@@ -709,6 +693,12 @@ def lambda_handler(event, context):
                 # Human actions
                 case ("GET", "/heartbeat"):  # also called by lambda cron
                     return api.api_heartbeat(event, context)
+
+                case ("GET", "/email"):
+                    return email_views.email_page(event, env)
+
+                case ("GET", "/email/message"):
+                    return email_views.email_page(event, env, message=True)
 
                 case ("GET", "/dashboard"):
                     return do_dashboard(event)

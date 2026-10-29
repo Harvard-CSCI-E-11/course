@@ -58,6 +58,11 @@ The read-only commands provide:
 - `dns-log-report`: hostname, most recent observed query, query count, and
   NXDOMAIN count. Defaults to the preceding 30 days and at most 10,000 hostnames.
 
+Hostname summaries normalize case and trailing dots before grouping. CSV exports
+prefix spreadsheet formula-like cells with an apostrophe; JSON keeps raw values.
+Verification retries transient DNS failures and rotates through the zone's
+authoritative name servers.
+
 Reports execute in CloudWatch Logs Insights and print the scanned data volume to
 stderr. The selected period is explicit in the options; a row-limit warning means
 results may be incomplete. No observed query is not proof of inactivity. A

@@ -1,0 +1,28 @@
+<!-- List the authenticated student's archived email index.
+     Rows come from that student's DynamoDB partition in newest-first order.
+     Each link opens an authenticated MIME viewer in a separate browser tab.
+     Subjects and timestamps are escaped before display.
+     Submission state describes SES acceptance, not mailbox delivery. -->
+{% extends "base.html" %}
+{% block title %}Email — CSCI E-11{% endblock title %}
+{% block content %}
+<h2>Email</h2>
+<p>Email sent to you by CSCI E-11. All times are Eastern Time.</p>
+{% if emails %}
+<table class="pure-table">
+  <thead><tr><th>Time</th><th>Subject</th><th>Submission status</th></tr></thead>
+  <tbody>
+    {% for email in emails %}
+    <tr>
+      <td>{{ email.timestamp | email_eastern | e }}</td>
+      <td><a href="/email/message?timestamp={{ email.timestamp | e }}" target="_blank" rel="noopener noreferrer">{{ email.subject | e }}</a></td>
+      <td>{{ email.status | e }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p>Accepted means SES accepted the message for sending; it does not confirm delivery.</p>
+{% else %}
+<p>No email has been archived for your account yet.</p>
+{% endif %}
+{% endblock content %}

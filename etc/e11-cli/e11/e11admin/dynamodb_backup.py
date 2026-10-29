@@ -1,3 +1,9 @@
+# Preserve DynamoDB records in typed, checksummed local archives.
+# Binary values are encoded losslessly and each table retains its key schema.
+# Views decode archives locally; restores validate every selected record first.
+# Restore defaults omit ephemeral session tables; explicit table selection opts in.
+# Destination key types and local-index layouts are checked before any table write.
+# Valid records are upserted in bounded batches with retries for unprocessed items.
 """Portable, lossless DynamoDB backups for course administration."""
 
 from __future__ import annotations
@@ -18,9 +24,10 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 
 FORMAT_NAME = "e11-dynamodb-backup"
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 MANIFEST_FILENAME = "manifest.json"
 MAX_BATCH_ITEMS = 25
+MAX_BATCH_BYTES = 16 * 1024 * 1024
 MAX_BATCH_RETRIES = 8
 
 # DynamoDB wire-format keys. These dictionaries cross the boto3 API boundary.
@@ -28,6 +35,8 @@ TABLE_NAMES = "TableNames"
 TABLE = "Table"
 KEY_SCHEMA = "KeySchema"
 ATTRIBUTE_NAME = "AttributeName"
+ATTRIBUTE_DEFINITIONS = "AttributeDefinitions"
+ATTRIBUTE_TYPE = "AttributeType"
 KEY_TYPE = "KeyType"
 ITEMS = "Items"
 ITEM = "Item"
@@ -35,6 +44,13 @@ LAST_EVALUATED_KEY = "LastEvaluatedKey"
 EXCLUSIVE_START_KEY = "ExclusiveStartKey"
 UNPROCESSED_ITEMS = "UnprocessedItems"
 PUT_REQUEST = "PutRequest"
+REQUEST_ITEMS = "RequestItems"
+GLOBAL_SECONDARY_INDEXES = "GlobalSecondaryIndexes"
+LOCAL_SECONDARY_INDEXES = "LocalSecondaryIndexes"
+INDEX_NAME = "IndexName"
+PROJECTION = "Projection"
+PROJECTION_TYPE = "ProjectionType"
+NON_KEY_ATTRIBUTES = "NonKeyAttributes"
 
 ATTRIBUTE_VALUE_TYPES = frozenset(
     {"B", "BS", "BOOL", "L", "M", "N", "NS", "NULL", "S", "SS"}
@@ -55,6 +71,21 @@ class KeyElement(BaseModel):
     key_type: Literal["HASH", "RANGE"]
 
 
+class KeyConstraint(BaseModel):
+    name: str
+    value_type: Literal["S", "N", "B"]
+    max_bytes: int
+
+
+class LocalIndexArchive(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    index_name: str = Field(min_length=1)
+    key_schema: list[KeyElement] = Field(min_length=2, max_length=2)
+    projection_type: Literal["ALL", "KEYS_ONLY", "INCLUDE"]
+    non_key_attributes: list[str] = Field(default_factory=list)
+
+
 class TableArchive(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -63,13 +94,14 @@ class TableArchive(BaseModel):
     item_count: int = Field(ge=0)
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     key_schema: list[KeyElement] = Field(min_length=1, max_length=2)
+    local_secondary_indexes: list[LocalIndexArchive] | None = None
 
 
 class BackupManifest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     format_name: Literal["e11-dynamodb-backup"] = FORMAT_NAME
-    format_version: Literal[1] = FORMAT_VERSION
+    format_version: Literal[1, 2] = FORMAT_VERSION
     created_at: datetime
     region: str | None
     tables: list[TableArchive] = Field(min_length=1)
@@ -202,6 +234,18 @@ def _key_schema(description: dict[str, Any]) -> list[KeyElement]:
         raise BackupError(f"invalid DynamoDB table description: {error}") from error
 
 
+def _local_indexes(description: dict[str, Any]) -> list[LocalIndexArchive]:
+    indexes = []
+    for index in description[TABLE].get(LOCAL_SECONDARY_INDEXES, []):
+        indexes.append(LocalIndexArchive(
+            index_name=index[INDEX_NAME],
+            key_schema=sorted(_key_schema({TABLE: index}), key=lambda key: key.key_type),
+            projection_type=index[PROJECTION][PROJECTION_TYPE],
+            non_key_attributes=sorted(index[PROJECTION].get(NON_KEY_ATTRIBUTES, [])),
+        ))
+    return sorted(indexes, key=lambda index: index.index_name)
+
+
 def _write_table(client: Any, table_name: str, path: Path) -> int:
     count = 0
     scan_arguments: dict[str, Any] = {"TableName": table_name, "ConsistentRead": True}
@@ -243,6 +287,7 @@ def backup_directory(
                 item_count=item_count,
                 sha256=_sha256(path),
                 key_schema=_key_schema(description),
+                local_secondary_indexes=_local_indexes(description),
             )
         )
 
@@ -305,13 +350,74 @@ def _key_fingerprint(item: WireItem, key_schema: Sequence[KeyElement]) -> str:
     return json.dumps(key, separators=(",", ":"), sort_keys=True)
 
 
+def _key_constraints(description: dict[str, Any]) -> list[KeyConstraint]:
+    table = description[TABLE]
+    types = {entry[ATTRIBUTE_NAME]: entry[ATTRIBUTE_TYPE]
+             for entry in table[ATTRIBUTE_DEFINITIONS]}
+    schemas = [table[KEY_SCHEMA], *(index[KEY_SCHEMA] for name in
+               (GLOBAL_SECONDARY_INDEXES, LOCAL_SECONDARY_INDEXES) for index in table.get(name, []))]
+    return [KeyConstraint(name=key[ATTRIBUTE_NAME], value_type=types[key[ATTRIBUTE_NAME]],
+                          max_bytes=2048 if key[KEY_TYPE] == "HASH" else 1024)
+            for schema in schemas for key in schema]
+
+
+def _validate_keys(item: WireItem, table_name: str, constraints: Sequence[KeyConstraint]) -> None:
+    for key in constraints:
+        if key.name not in item:  # Missing index keys create sparse indexes.
+            continue
+        value = item[key.name]
+        if set(value) != {key.value_type} or value[key.value_type] in ("", b""):
+            raise BackupError(f"key type/value mismatch for {table_name}.{key.name}: expected {key.value_type}")
+        payload = value[key.value_type]
+        if key.value_type == "S":
+            payload = payload.encode("utf-8")
+        if key.value_type in ("S", "B") and len(payload) > key.max_bytes:
+            raise BackupError(f"key exceeds {key.max_bytes} bytes for {table_name}.{key.name}")
+
+
+def _batch_overhead(table_name: str) -> int:
+    return len(json.dumps({REQUEST_ITEMS: {table_name: []}}).encode("utf-8"))
+
+
+def _put_request_size(item: WireItem) -> int:
+    # Match boto3's JSON escaping and base64 expansion, including wrapper keys.
+    encoded = {name: _encode_av(value) for name, value in item.items()}
+    return len(json.dumps({PUT_REQUEST: {ITEM: encoded}}).encode("utf-8"))
+
+
+def _write_batches(table_name: str, items: Iterator[WireItem]) -> Iterator[list[WireItem]]:
+    overhead = _batch_overhead(table_name)
+    size = overhead
+    batch: list[WireItem] = []
+    for item in items:
+        item_bytes = _put_request_size(item)
+        if overhead + item_bytes > MAX_BATCH_BYTES:
+            raise BackupError(f"record exceeds batch byte limit for {table_name}")
+        if batch and (len(batch) == MAX_BATCH_ITEMS or size + 2 + item_bytes > MAX_BATCH_BYTES):
+            yield batch
+            batch = []
+            size = overhead
+        size += item_bytes + (2 if batch else 0)
+        batch.append(item)
+    if batch:
+        yield batch
+
+
 def _preflight(client: Any, directory: Path, tables: Sequence[TableArchive]) -> None:
     """Validate every selected table and record before restore performs any write."""
     available = set(_list_tables(client))
     for table in tables:
         if table.table_name not in available:
             raise BackupError(f"restore target table does not exist: {table.table_name}")
-        target_schema = _key_schema(client.describe_table(TableName=table.table_name))
+        description = client.describe_table(TableName=table.table_name)
+        target_schema = _key_schema(description)
+        target_local_indexes = _local_indexes(description)
+        if target_local_indexes and table.local_secondary_indexes != target_local_indexes:
+            raise BackupError(
+                f"local secondary index layout mismatch for {table.table_name}; "
+                "restore requires matching archived layouts (older archives lack this metadata)"
+            )
+        constraints = _key_constraints(description)
         expected = {(entry.attribute_name, entry.key_type) for entry in table.key_schema}
         actual = {(entry.attribute_name, entry.key_type) for entry in target_schema}
         if actual != expected:
@@ -322,6 +428,9 @@ def _preflight(client: Any, directory: Path, tables: Sequence[TableArchive]) -> 
         for line_number, item in _iter_archive_items(directory / table.filename):
             try:
                 fingerprint = _key_fingerprint(item, table.key_schema)
+                _validate_keys(item, table.table_name, constraints)
+                if _batch_overhead(table.table_name) + _put_request_size(item) > MAX_BATCH_BYTES:
+                    raise BackupError(f"record exceeds batch byte limit for {table.table_name}")
             except BackupError as error:
                 raise BackupError(f"{table.filename}:{line_number}: {error}") from error
             if fingerprint in seen_keys:
@@ -351,20 +460,17 @@ def _write_batch(client: Any, table_name: str, items: Sequence[WireItem]) -> Non
 def restore_directory(
     client: Any, directory: Path, table_names: Sequence[str] | None = None
 ) -> list[tuple[str, int]]:
-    """Upsert all selected records after validating the complete restore set."""
+    """Upsert selected records; session tables require explicit table selection."""
     tables = _select_archives(load_manifest(directory), table_names)
+    if not table_names:
+        tables = [table for table in tables
+                  if table.table_name != "sessions" and not table.table_name.endswith("-sessions")]
     _preflight(client, directory, tables)
     restored: list[tuple[str, int]] = []
     for table in tables:
-        batch: list[WireItem] = []
         count = 0
-        for _line_number, item in _iter_archive_items(directory / table.filename):
-            batch.append(item)
-            if len(batch) == MAX_BATCH_ITEMS:
-                _write_batch(client, table.table_name, batch)
-                count += len(batch)
-                batch = []
-        if batch:
+        items = (item for _line, item in _iter_archive_items(directory / table.filename))
+        for batch in _write_batches(table.table_name, items):
             _write_batch(client, table.table_name, batch)
             count += len(batch)
         restored.append((table.table_name, count))

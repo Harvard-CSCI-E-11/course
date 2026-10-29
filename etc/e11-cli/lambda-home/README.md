@@ -26,3 +26,11 @@ make prod-vbd
 ```
 
 `make check` vendors the current shared `e11/` package before validating imports and running tests.
+
+### Email history
+
+Signed-in students can use `/email` to list their archived course email.
+Subjects open `/email/message?timestamp=...` in another tab. Both routes enforce
+the existing session and user ownership, serve private non-cacheable responses,
+and display escaped plain-text MIME content. See the parent CLI README for
+archive storage, welcome behavior, and `make email-check` service configuration.

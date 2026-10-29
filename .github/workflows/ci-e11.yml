@@ -19,8 +19,7 @@ jobs:
       run:
         working-directory: etc/e11-cli
     env:
-      AWS_DEFAULT_REGION: 'localhost'
-      AWS_ENDPOINT_URL: 'http://localhost:8000'
+      AWS_DEFAULT_REGION: 'us-east-1'
       AWS_ACCESS_KEY_ID: 'minioadmin'
       AWS_SECRET_ACCESS_KEY: 'minioadmin'
     steps:
@@ -44,26 +43,13 @@ jobs:
           uv --version
           java -version
 
-      - name: Create default AWS credentials and Validate local DynamoDB endpoint
-        run: |
-          (make start_local_dynamodb)
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.8"
+          cache: false
 
-      - name: e11 command tests with coverage
-        run: |
-          make lint
-          make check
-
-      - name: lambda-home tests with coverage
-        run: |
-          (cd lambda-home; make install)
-          (cd lambda-home; make lint)
-          (cd lambda-home; make check)
-
-      - name: lambda-leaderboard tests with coverage
-        run: |
-          (cd lambda-leaderboard; make install)
-          (cd lambda-leaderboard; make lint)
-          (cd lambda-leaderboard; make check)
+      - name: Check CLI and Lambdas with DynamoDB Local and MinIO
+        run: make email-check
 
       - name: list coverage files
         run: |

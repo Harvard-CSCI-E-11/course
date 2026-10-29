@@ -24,6 +24,10 @@
       <div class="pure-menu pure-menu-horizontal">
         <a href="." class="pure-menu-heading pure-menu-link">Harvard CSCI E-11</a>
         <ul class="pure-menu-list">
+          {% if ses %}
+          <li class="pure-menu-item"><a href="/dashboard" class="pure-menu-link">Dashboard</a></li>
+          <li class="pure-menu-item"><a href="/email" class="pure-menu-link">email</a></li>
+          {% endif %}
           {% block menu %}{% endblock menu %}
           <li class="pure-menu-item">
             <a href="?page=about.html" class="pure-menu-link">About</a>

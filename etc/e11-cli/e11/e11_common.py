@@ -18,7 +18,10 @@ from datetime import datetime,timezone
 from pydantic import BaseModel, ConfigDict, field_validator
 import boto3
 from boto3.dynamodb.conditions import Key
-from botocore.exceptions import ClientError
+from botocore.config import Config
+from botocore.exceptions import BotoCoreError, ClientError
+
+from e11.email_archive import (CODE, ERROR, EMAIL_PREFIX, WELCOME_STATUS, EmailSubmissionUnknown, archive_and_send)
 
 from e11.e11core.constants import COURSE_KEY_LEN, COURSE_DOMAIN
 from e11.e11core.utils import get_logger
@@ -140,7 +143,8 @@ s3_client : S3Client = boto3.client("s3", region_name=AWS_REGION)
 
 # Simple Email Service
 SES_VERIFIED_EMAIL = f"admin@{COURSE_DOMAIN}"  # Verified SES email address
-ses_client = boto3.client("ses", region_name=AWS_REGION)
+ses_client = boto3.client("ses", region_name=AWS_REGION,
+                          config=Config(retries={"total_max_attempts": 1}))
 
 # Classes
 
@@ -174,6 +178,7 @@ class A:                        # pylint: disable=too-few-public-methods
     SK_GRADE_PATTERN = SK_GRADE_PREFIX + "{lab}#{now}"
     SK_LOG_PREFIX = 'log#'         # sort key prefix for log entries
     SK_USER = '#'                  # sort key for the user record
+    SK_EMAIL_PREFIX = EMAIL_PREFIX
     SK_IMAGE_PREFIX = 'image#'     # sort key for images
     SK_IMAGE_PATTERN = SK_IMAGE_PREFIX + "{lab}#{now}"
     SK_ADMIN_LOG_PREFIX = 'admin-log#' # e11admin action log
@@ -236,6 +241,7 @@ class User(DictLikeModel):
     public_ip: str|None = None
     hostname: str|None = None
     host_registered: int|None = None
+    welcome_status: str|None = None
     model_config = ConfigDict(extra="ignore") # allow additional keys
 
     def emails(self) -> list[str]:
@@ -296,7 +302,8 @@ def generate_direct_login_url(user_id: str, course_key: str) -> str:
 def create_new_user(email, claims=None):
     """Create a new user."""
     now = int(time.time())
-    user_id = str(uuid.uuid4())
+    # New accounts have stable IDs so concurrent first logins cannot create duplicates.
+    user_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"https://{COURSE_DOMAIN}/users/{email}"))
     # Fail if public_ip is in claims - it should not be in claims
     # Claims are OIDC identity fields (email, name, etc.), not instance-specific fields
     if claims is not None and A.PUBLIC_IP in claims:
@@ -305,6 +312,13 @@ def create_new_user(email, claims=None):
             f"(email, name, etc.), not instance-specific fields. "
             f"Found public_ip='{claims[A.PUBLIC_IP]}' in claims for email='{email}'"
         )
+    try:
+        existing = get_user_from_email(email)
+    except EmailNotRegistered:
+        pass
+    else:
+        send_welcome_email(existing)
+        return existing
     user = {
         A.USER_ID: user_id,
         A.SK: A.SK_USER,
@@ -312,9 +326,17 @@ def create_new_user(email, claims=None):
         A.COURSE_KEY: make_course_key(),
         A.USER_REGISTERED: now,
         A.CLAIMS: claims,
+        WELCOME_STATUS: "pending",
     }
-    users_table.put_item(Item=user)  # USER CREATION POINT
-    return User(**convert_dynamodb_item(user))
+    try:
+        users_table.put_item(Item=user, ConditionExpression="attribute_not_exists(user_id)")
+        created = User(**convert_dynamodb_item(user))
+    except ClientError as exc:
+        if exc.response.get(ERROR, {}).get(CODE) != "ConditionalCheckFailedException":
+            raise
+        created = get_user_from_user_id(user_id)
+    send_welcome_email(created)
+    return created
 
 def get_user_from_email(email) -> User:
     """Given an email address, get the DynamoDB user record from the users_table.
@@ -341,7 +363,7 @@ def get_user_from_user_id(user_id: str) -> User:
     logger = get_logger()
     logger.debug("get_user_from_user_id: looking for user_id=%s", user_id)
     resp = users_table.get_item(
-        Key={A.USER_ID: user_id, A.SK: A.SK_USER}
+        Key={A.USER_ID: user_id, A.SK: A.SK_USER}, ConsistentRead=True
     )
     if "Item" not in resp:
         raise EmailNotRegistered(f"User {user_id} not found")
@@ -500,6 +522,9 @@ def get_images(user_id):
     return queryscan_table(users_table.query, kwargs)
 
 def delete_image(user_id, sk, bucket, key):
+    if (not isinstance(sk, str) or not sk.startswith(A.SK_IMAGE_PREFIX)
+            or bucket != S3_BUCKET or not isinstance(key, str) or not key.startswith("images/")):
+        raise ValueError("Deletion is restricted to course image records and objects")
     get_logger().info("delete_image user=%s sk=%s bucket=%s key=%s", user_id, sk, bucket, key)
     r1 = users_table.delete_item(Key={A.USER_ID:user_id, A.SK:sk})
     r2 = s3_client.delete_object(Bucket=bucket, Key=key)
@@ -526,23 +551,51 @@ def add_leaderboard_log(user_id, client_ip, name, user_agent, **extra):
 
 ################################################################
 ## SES
-def send_email2(to_addrs: list[str], email_subject: str, email_body: str):
-    """
-    Send an email via SES to one or more recipients.
+def send_email2(to_addrs: list[str], email_subject: str, email_body: str, *, user_id: str):
+    """The only outbound mail path: archive and index before submitting to SES."""
+    user = get_user_from_user_id(user_id)
+    recipients = list(dict.fromkeys(to_addrs))
+    if not recipients or not set(recipients).issubset(user.emails()):
+        raise ValueError("Email recipients must belong to the indexed student")
+    return archive_and_send(table=users_table, s3=s3_client, ses=ses_client,
+                            user_id=user_id, sender=SES_VERIFIED_EMAIL,
+                            recipients=recipients, subject=email_subject, body=email_body)
 
-    Args:
-        to_addrs: List of recipient email addresses.
-        email_subject: Subject line for the email.
-        email_body: Plain-text body of the email.
-    """
-    r = ses_client.send_email(
-        Source=SES_VERIFIED_EMAIL,
-        Destination={"ToAddresses": to_addrs},
-        Message={
-            "Subject": {"Data": email_subject},
-            "Body": {"Text": {"Data": email_body}},
-        },
-    )
-    get_logger().info( "send_email2 to=%s subject=%s SES response: %s",
-                       to_addrs, email_subject, r )
-    return r
+
+def send_welcome_email(user: User):
+    """Claim a new account's welcome once; retry only known pre-submission failures."""
+    if user.welcome_status not in {"pending", "retryable"}:
+        return  # Existing accounts are not retrospectively welcomed.
+    try:
+        users_table.update_item(
+            Key={A.USER_ID: user.user_id, A.SK: A.SK_USER},
+            UpdateExpression="SET welcome_status = :sending",
+            ConditionExpression="welcome_status IN (:pending, :retryable)",
+            ExpressionAttributeValues={":sending": "sending", ":pending": "pending", ":retryable": "retryable"},
+        )
+    except ClientError as exc:
+        if exc.response.get(ERROR, {}).get(CODE) == "ConditionalCheckFailedException":
+            return
+        raise
+    status = "accepted"
+    login_url = (generate_direct_login_url(user.user_id, user.course_key)
+                 if user.claims is None and user.course_key else DASHBOARD)
+    try:
+        send_email2(user.emails(), "Welcome to CSCI E-11",
+                    f"Welcome to CSCI E-11!\n\nYour course key is: {user.course_key}\n"
+                    f"Visit your dashboard at {login_url} to view your grades and email.\n",
+                    user_id=user.user_id)
+    except EmailSubmissionUnknown:
+        status = "unknown"
+        get_logger().exception("Welcome email submission uncertain for user_id=%s", user.user_id)
+    except (BotoCoreError, ClientError):
+        status = "retryable"
+        get_logger().exception("Welcome email failed for user_id=%s", user.user_id)
+    try:
+        users_table.update_item(
+            Key={A.USER_ID: user.user_id, A.SK: A.SK_USER},
+            UpdateExpression="SET welcome_status = :status",
+            ExpressionAttributeValues={":status": status},
+        )
+    except (BotoCoreError, ClientError):
+        get_logger().exception("Cannot record welcome outcome for user_id=%s", user.user_id)

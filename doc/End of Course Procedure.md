@@ -172,6 +172,16 @@ step 7.
 
 ## 6. Reset course data
 
+Before emptying S3, preserve the `email/` prefix in the secure rollover backup
+and verify the copied object count and contents. The DynamoDB backup contains
+email subjects and S3 locations, but does not contain the `.eml` message bodies;
+restoring email history requires both. Treat the email backup as sensitive
+student data because welcome messages include course keys and login links.
+
+Empty the `csci-e-11` S3 bucket: delete all objects, including all object versions
+and delete markers if versioning is enabled or suspended, and abort any incomplete
+multipart uploads. Keep the bucket itself. Verify that no objects, versions,
+delete markers, or incomplete uploads remain before reopening course writes.
 
 ## 7. Close the maintenance window
 

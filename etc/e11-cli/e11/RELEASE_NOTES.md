@@ -1,5 +1,28 @@
 # Release notes
 
+## 2026-10-29: Student email archive
+
+- Archive every outgoing student email in private S3 with a DynamoDB subject/time
+  index, add an authenticated email tab, and send an archived welcome on first
+  registration. Staff-created accounts receive their direct-login link.
+
+## 2026-10-28: PR readiness corrections
+
+- Default restores skip ephemeral session tables; direct CLI restores require
+  `--allow-restore`. Preflight checks destination primary/index key types and byte limits before
+  any writes. Version 2 archives retain local secondary index layouts so restore
+  can reject incompatible projections before writing; version 1 restores remain
+  supported for destinations without local indexes. Batches respect serialized
+  request limits, and local archive viewing
+  no longer initializes AWS clients.
+- Student checkout paths consistently use `~/course`, independent of the version
+  label, with a local `COURSE_ROOT` override. Supplied web service units and
+  remote answer-file lookup follow that layout; historical lookup remains available.
+- DNS summaries group canonical hostnames, CSV output protects formula-like cells,
+  and verification retries transient failures across authoritative servers.
+- Restored pre-commit failure propagation while preserving partial staging,
+  updated uv setup instructions, and resolved documentation conflict markers.
+
 ## 2026-10-28: Public DNS query logging
 
 - Added one standalone script and Make targets to enable and verify public DNS

@@ -1,11 +1,23 @@
 # e11/Makefile
 #
 # The e11 module runs on Python 3.14 on student machines and AWS Lambda.
+# COURSE_ROOT optionally overrides the local student checkout (default ~/course).
 
 # DynamoDB local stuff (see end)
 DYNAMODB_LOCAL_ENDPOINT=http://localhost:8000/
 E11_VARS := AWS_ENDPOINT_URL_DYNAMODB=$(DYNAMODB_LOCAL_ENDPOINT)
 REQ      := bin/DynamoDBLocal.jar
+
+# GOBIN places compiled MinIO in bin; MINIO_ROOT_USER/PASSWORD configure only its local test server.
+# Email tests use isolated ports; MINIO_BIN can select an existing local binary.
+# AWS_ENDPOINT_URL_DYNAMODB and MINIO_TEST_ENDPOINT route tests to local services.
+# REQUIRE_EMAIL_SERVICES prevents archive integration tests from silently skipping.
+# EMAIL_PREVIEW_DIR saves synthetic, authenticated test responses for visual QA.
+MINIO_BIN ?= bin/minio
+MINIO_SOURCE := github.com/minio/minio@9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a
+EMAIL_DDB_PORT ?= 18000
+EMAIL_MINIO_PORT ?= 19000
+EMAIL_TEST_DIR := $(CURDIR)/var/email-test
 
 
 .PHONY: pytest lint clean check test man
@@ -30,6 +42,42 @@ check-all:
 	make check
 	(cd lambda-home; make check)
 	(cd lambda-leaderboard; make check)
+
+bin/minio:
+	GOBIN="$(CURDIR)/bin" go install $(MINIO_SOURCE)
+
+.PHONY: format-email email-check email-test
+format-email:
+	cd lambda-home && uv run --locked ruff check --fix src/home_app/email_views.py src/home_app/sessions.py tests/test_email_archive.py
+	cd lambda-home && uv run --locked ruff format src/home_app/email_views.py tests/test_email_archive.py
+
+email-check email-test: .venv/pyvenv.cfg $(REQ) $(MINIO_BIN)
+	$(MAKE) -C lambda-home vend-e11
+	@set -eu; mkdir -p "$(EMAIL_TEST_DIR)"; \
+	java -Djava.library.path=bin/DynamoDBLocal_lib -jar $(REQ) -inMemory -sharedDb -port $(EMAIL_DDB_PORT) > "$(EMAIL_TEST_DIR)/dynamodb.log" 2>&1 & ddb_pid=$$!; \
+	MINIO_ROOT_USER=minioadmin MINIO_ROOT_PASSWORD=minioadmin "$(MINIO_BIN)" server --address 127.0.0.1:$(EMAIL_MINIO_PORT) --console-address 127.0.0.1:$(shell expr $(EMAIL_MINIO_PORT) + 1) "$(EMAIL_TEST_DIR)/minio" > "$(EMAIL_TEST_DIR)/minio.log" 2>&1 & minio_pid=$$!; \
+	trap 'kill $$ddb_pid $$minio_pid 2>/dev/null || true' EXIT INT TERM; \
+	for attempt in $$(seq 1 30); do \
+	  kill -0 $$ddb_pid $$minio_pid; \
+	  if curl -s http://127.0.0.1:$(EMAIL_DDB_PORT)/ > /dev/null && curl -fs http://127.0.0.1:$(EMAIL_MINIO_PORT)/minio/health/live > /dev/null; then break; fi; \
+	  sleep 1; \
+	done; \
+	curl -s http://127.0.0.1:$(EMAIL_DDB_PORT)/ > /dev/null; \
+	curl -fs http://127.0.0.1:$(EMAIL_MINIO_PORT)/minio/health/live > /dev/null; \
+	export AWS_ENDPOINT_URL_DYNAMODB=http://127.0.0.1:$(EMAIL_DDB_PORT) MINIO_TEST_ENDPOINT=http://127.0.0.1:$(EMAIL_MINIO_PORT) REQUIRE_EMAIL_SERVICES=1 EMAIL_PREVIEW_DIR="$(EMAIL_TEST_DIR)/preview"; \
+	export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_DEFAULT_REGION=us-east-1; \
+	if test "$@" = email-test; then \
+	  $(MAKE) -C lambda-home test-email; \
+	else \
+	  $(MAKE) check; \
+	  $(MAKE) -C lambda-home check; \
+	  $(MAKE) -C lambda-leaderboard lint check; \
+	fi
+
+.PHONY: email-preview
+email-preview:
+	ln -sfn "$(CURDIR)/lambda-home/src/home_app/static" "$(EMAIL_TEST_DIR)/preview/static"
+	uv run --locked python -m http.server 18900 --bind 127.0.0.1 --directory "$(EMAIL_TEST_DIR)/preview"
 
 prod-all:
 	(cd lambda-home; make prod-vbd)
@@ -106,7 +154,7 @@ ddb-view: .venv/pyvenv.cfg
 
 ddb-restore: .venv/pyvenv.cfg
 	@test -n "$(DDB_DIR)" && test "$(DDB_ALLOW_RESTORE)" = YES
-	@uv run --locked e11admin restore "$(DDB_DIR)" $(if $(DDB_TABLE),--table "$(DDB_TABLE)")
+	@uv run --locked e11admin restore "$(DDB_DIR)" --allow-restore $(if $(DDB_TABLE),--table "$(DDB_TABLE)")
 
 # DNS cleanup: DDB_DIR supplies the step-3 export prefix. DNS_ZONE_EXPORT can
 # override that input; DNS_KEEP names the keep-list and DNS_PLAN the saved plan.

@@ -1,3 +1,9 @@
+# Exercise lossless archive operations against real DynamoDB Local tables.
+# Round trips retain binary, numeric, set, and nested attribute representations.
+# Default restores omit sessions, while explicitly selected tables can be restored.
+# Preflight failures must leave all previously selected destination data untouched.
+# Console tests cover offline views and opt-in enforcement before AWS access.
+# Temporary tables and archive directories belong only to the current test.
 """Integration tests for e11admin backups using DynamoDB Local."""
 
 import gzip
@@ -6,6 +12,7 @@ import io
 import json
 import os
 import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 
 import boto3
@@ -14,6 +21,8 @@ import pytest
 from e11.e11admin.dynamodb_backup import (
     BackupError,
     BackupManifest,
+    KeyElement,
+    TableArchive,
     backup_directory,
     load_manifest,
     restore_directory,
@@ -91,7 +100,7 @@ def test_backup_view_and_idempotent_restore_round_trip(
         TableName=SESSIONS_TABLE, Key={"sid": {"S": "backup-session"}}
     )
     for _repeat in range(2):
-        assert restore_directory(client, backup_path) == [
+        assert restore_directory(client, backup_path, [USERS_TABLE, SESSIONS_TABLE]) == [
             (USERS_TABLE, 1),
             (SESSIONS_TABLE, 1),
         ]
@@ -151,7 +160,7 @@ def test_restore_preflight_rejects_missing_key_before_any_write(
     )
 
     with pytest.raises(BackupError, match="missing key attribute 'sid'"):
-        restore_directory(client, backup_path)
+        restore_directory(client, backup_path, [USERS_TABLE, SESSIONS_TABLE])
 
     preserved = client.get_item(
         TableName=USERS_TABLE,
@@ -222,3 +231,262 @@ def test_backup_view_restore_commands_against_dynamodb_local(
         Key={"user_id": {"S": "backup-user"}, "sk": {"S": "#"}},
         ConsistentRead=True,
     )
+
+
+def test_default_restore_does_not_revive_archived_sessions(tmp_path, dynamodb_local, clean_dynamodb):
+    del dynamodb_local, clean_dynamodb
+    client = _client()
+    _put_items(client)
+    backup = tmp_path / "session-backup"
+    backup_directory(client, backup, [USERS_TABLE, SESSIONS_TABLE])
+    client.delete_item(TableName=SESSIONS_TABLE, Key={"sid": {"S": "backup-session"}})
+    assert restore_directory(client, backup) == [(USERS_TABLE, 1)]
+    assert "Item" not in client.get_item(TableName=SESSIONS_TABLE,
+                                         Key={"sid": {"S": "backup-session"}}, ConsistentRead=True)
+
+
+@pytest.mark.parametrize("incompatible_key", ["sid", "secondary"])
+def test_restore_checks_primary_and_index_key_types_before_writes(
+    tmp_path, dynamodb_local, clean_dynamodb, incompatible_key,
+):
+    del dynamodb_local, clean_dynamodb
+    from e11.e11admin import dynamodb_backup as archive
+    client = _client()
+    _put_items(client)
+    table_name = "z-key-type-preflight"
+    secondary = "secondary"
+    sid = "sid"
+    string_type = "S"
+    number_type = "N"
+
+    def create_table(numeric_key=None):
+        client.create_table(
+            TableName=table_name,
+            KeySchema=[{archive.ATTRIBUTE_NAME: sid, archive.KEY_TYPE: "HASH"}],
+            AttributeDefinitions=[{archive.ATTRIBUTE_NAME: name,
+                                   archive.ATTRIBUTE_TYPE: number_type if name == numeric_key else string_type}
+                                  for name in [sid, secondary]],
+            GlobalSecondaryIndexes=[{"IndexName": "BySecondary", archive.KEY_SCHEMA: [
+                {archive.ATTRIBUTE_NAME: secondary, archive.KEY_TYPE: "HASH"}],
+                "Projection": {"ProjectionType": "ALL"}}],
+            BillingMode="PAY_PER_REQUEST",
+        )
+        client.get_waiter("table_exists").wait(TableName=table_name)
+
+    create_table()
+    try:
+        client.put_item(TableName=table_name, Item={sid: {string_type: "old-id"},
+                                                   secondary: {string_type: "old-index"}})
+        backup = tmp_path / "key-types"
+        backup_directory(client, backup, [USERS_TABLE, table_name])
+        client.update_item(TableName=USERS_TABLE, Key={"user_id": {"S": "backup-user"}, "sk": {"S": "#"}},
+                           UpdateExpression="SET marker = :m", ExpressionAttributeValues={":m": {"S": "preserved"}})
+        client.delete_table(TableName=table_name)
+        client.get_waiter("table_not_exists").wait(TableName=table_name)
+        create_table(incompatible_key)
+        with pytest.raises(BackupError, match="key type/value mismatch"):
+            restore_directory(client, backup)
+        assert client.get_item(TableName=USERS_TABLE,
+                               Key={"user_id": {"S": "backup-user"}, "sk": {"S": "#"}},
+                               ConsistentRead=True)["Item"]["marker"] == {"S": "preserved"}
+    finally:
+        client.delete_table(TableName=table_name)
+
+
+def _offline_environment():
+    environment = os.environ.copy()
+    for key in ["AWS_PROFILE", "AWS_DEFAULT_PROFILE", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY",
+                "AWS_SESSION_TOKEN", "AWS_REGION", "AWS_DEFAULT_REGION"]:
+        environment.pop(key, None)
+    environment.update(AWS_CONFIG_FILE=os.devnull, AWS_SHARED_CREDENTIALS_FILE=os.devnull,
+                       AWS_EC2_METADATA_DISABLED="true")
+    return environment
+
+
+def test_console_view_is_offline_and_restore_requires_opt_in(tmp_path):
+    directory = tmp_path / "offline-backup"
+    directory.mkdir()
+    data = directory / "table-0000.ddb"
+    with gzip.open(data, "wt", encoding="utf-8") as stream:
+        stream.write(json.dumps({"user_id": {"S": "offline-user"}}) + "\n")
+    manifest = BackupManifest(created_at=datetime.now(timezone.utc), region=None, tables=[
+        TableArchive(table_name="offline-users", filename=data.name, item_count=1,
+                     sha256=hashlib.sha256(data.read_bytes()).hexdigest(),
+                     key_schema=[KeyElement(attribute_name="user_id", key_type="HASH")]),
+    ])
+    (directory / "manifest.json").write_text(manifest.model_dump_json())
+    project = Path(__file__).resolve().parents[1]
+    viewed = subprocess.run(["make", "--silent", "--no-print-directory", "ddb-view", f"DDB_DIR={directory}"],
+                            cwd=project, env=_offline_environment(), capture_output=True, text=True, check=True)
+    assert json.loads(viewed.stdout)["item"]["user_id"] == "offline-user"
+    rejected = subprocess.run([str(project / ".venv/bin/e11admin"), "restore", str(directory)],
+                              env=_offline_environment(), capture_output=True, text=True, check=False)
+    assert rejected.returncode == 2
+    assert "--allow-restore" in rejected.stderr
+    assert "NoRegionError" not in rejected.stderr
+
+
+@pytest.mark.parametrize("value_type,key_role,length", [("S", "HASH", 2049), ("S", "RANGE", 1025), ("B", "HASH", 2049)])
+def test_restore_checks_new_index_key_byte_limits_before_writes(
+    tmp_path, dynamodb_local, clean_dynamodb, value_type, key_role, length,
+):
+    del dynamodb_local, clean_dynamodb
+    from e11.e11admin import dynamodb_backup as archive
+    client = _client()
+    _put_items(client)
+    table_name = "z-key-length-preflight"
+
+    def create_table(with_index):
+        arguments = {
+            "TableName": table_name,
+            archive.KEY_SCHEMA: [{archive.ATTRIBUTE_NAME: "sid", archive.KEY_TYPE: "HASH"}],
+            archive.ATTRIBUTE_DEFINITIONS: [{archive.ATTRIBUTE_NAME: "sid", archive.ATTRIBUTE_TYPE: "S"}],
+            "BillingMode": "PAY_PER_REQUEST",
+        }
+        if with_index:
+            arguments[archive.ATTRIBUTE_DEFINITIONS].append(
+                {archive.ATTRIBUTE_NAME: "secondary", archive.ATTRIBUTE_TYPE: value_type})
+            schema = [{archive.ATTRIBUTE_NAME: "secondary", archive.KEY_TYPE: key_role}]
+            if key_role == "RANGE":
+                schema.insert(0, {archive.ATTRIBUTE_NAME: "sid", archive.KEY_TYPE: "HASH"})
+            arguments[archive.GLOBAL_SECONDARY_INDEXES] = [
+                {"IndexName": "BySecondary", archive.KEY_SCHEMA: schema,
+                 "Projection": {"ProjectionType": "ALL"}}]
+        client.create_table(**arguments)
+        client.get_waiter("table_exists").wait(TableName=table_name)
+
+    create_table(False)
+    try:
+        # Non-ASCII text ensures the check measures UTF-8 bytes, not characters.
+        payload = "é" * (length // 2) + "x" if value_type == "S" else b"x" * length
+        client.put_item(TableName=table_name, Item={"sid": {"S": "old-id"}, "secondary": {value_type: payload}})
+        backup = tmp_path / "key-lengths"
+        backup_directory(client, backup, [USERS_TABLE, table_name])
+        client.update_item(TableName=USERS_TABLE, Key={"user_id": {"S": "backup-user"}, "sk": {"S": "#"}},
+                           UpdateExpression="SET marker = :m", ExpressionAttributeValues={":m": {"S": "preserved"}})
+        client.delete_table(TableName=table_name)
+        client.get_waiter("table_not_exists").wait(TableName=table_name)
+        create_table(True)
+        with pytest.raises(BackupError, match="key exceeds"):
+            restore_directory(client, backup)
+        assert client.get_item(TableName=USERS_TABLE, Key={"user_id": {"S": "backup-user"}, "sk": {"S": "#"}},
+                               ConsistentRead=True)["Item"]["marker"] == {"S": "preserved"}
+    finally:
+        client.delete_table(TableName=table_name)
+
+
+def test_write_batches_fit_actual_boto3_request_serialization():
+    from botocore.session import Session
+    from botocore.serialize import create_serializer
+    from e11.e11admin import dynamodb_backup as archive
+    model = Session().get_service_model("dynamodb").operation_model("BatchWriteItem")
+    serializer = create_serializer("json")
+    for payload in [{"S": "é" * 150000}, {"B": b"x" * 300000}]:
+        items = [{"id": {"S": str(index)}, "payload": payload} for index in range(26)]
+        batches = list(archive._write_batches("byte-limit", iter(items)))
+        assert [item for batch in batches for item in batch] == items
+        assert len(batches) >= 2
+        for batch in batches:
+            request = {archive.REQUEST_ITEMS: {"byte-limit": [{archive.PUT_REQUEST: {archive.ITEM: item}} for item in batch]}}
+            wire = serializer.serialize_to_request(request, model)["body"]
+            assert len(wire) <= archive.MAX_BATCH_BYTES
+            assert len(batch) <= archive.MAX_BATCH_ITEMS
+
+
+def _create_local_index_table(client, table_name, projection=None):
+    from e11.e11admin import dynamodb_backup as archive
+    definitions = [{archive.ATTRIBUTE_NAME: name, archive.ATTRIBUTE_TYPE: "S"} for name in ["pk", "sk"]]
+    arguments = {
+        "TableName": table_name,
+        archive.KEY_SCHEMA: [{archive.ATTRIBUTE_NAME: "pk", archive.KEY_TYPE: "HASH"},
+                             {archive.ATTRIBUTE_NAME: "sk", archive.KEY_TYPE: "RANGE"}],
+        archive.ATTRIBUTE_DEFINITIONS: definitions,
+        "BillingMode": "PAY_PER_REQUEST",
+    }
+    if projection:
+        definitions.append({archive.ATTRIBUTE_NAME: "secondary", archive.ATTRIBUTE_TYPE: "S"})
+        projection_arguments = {archive.PROJECTION_TYPE: projection}
+        if projection == "INCLUDE":
+            projection_arguments[archive.NON_KEY_ATTRIBUTES] = ["note"]
+        arguments[archive.LOCAL_SECONDARY_INDEXES] = [{
+            archive.INDEX_NAME: "BySecondary",
+            archive.KEY_SCHEMA: [{archive.ATTRIBUTE_NAME: "pk", archive.KEY_TYPE: "HASH"},
+                                 {archive.ATTRIBUTE_NAME: "secondary", archive.KEY_TYPE: "RANGE"}],
+            archive.PROJECTION: projection_arguments,
+        }]
+    client.create_table(**arguments)
+    client.get_waiter("table_exists").wait(TableName=table_name)
+
+
+@pytest.mark.parametrize("legacy_manifest", [False, True])
+def test_restore_rejects_new_lsi_projection_before_earlier_table_writes(
+    tmp_path, dynamodb_local, clean_dynamodb, legacy_manifest,
+):
+    del dynamodb_local, clean_dynamodb
+    client = _client()
+    _put_items(client)
+    table_name = "z-local-index-preflight"
+    _create_local_index_table(client, table_name)
+    try:
+        client.put_item(TableName=table_name, Item={"pk": {"S": "p"}, "sk": {"S": "s"},
+            "secondary": {"S": "index-key"}, "payload": {"S": "x" * 250000}})
+        backup = tmp_path / "local-index-backup"
+        backup_directory(client, backup, [USERS_TABLE, table_name])
+        if legacy_manifest:
+            path = backup / "manifest.json"
+            manifest = json.loads(path.read_text())
+            manifest["format_version"] = 1
+            for table in manifest["tables"]:
+                table.pop("local_secondary_indexes")
+            path.write_text(json.dumps(manifest))
+        client.update_item(TableName=USERS_TABLE, Key={"user_id": {"S": "backup-user"}, "sk": {"S": "#"}},
+                           UpdateExpression="SET marker = :m", ExpressionAttributeValues={":m": {"S": "preserved"}})
+        client.delete_table(TableName=table_name)
+        client.get_waiter("table_not_exists").wait(TableName=table_name)
+        _create_local_index_table(client, table_name, "ALL")
+        with pytest.raises(BackupError, match="local secondary index layout mismatch"):
+            restore_directory(client, backup)
+        assert client.get_item(TableName=USERS_TABLE, Key={"user_id": {"S": "backup-user"}, "sk": {"S": "#"}},
+                               ConsistentRead=True)["Item"]["marker"] == {"S": "preserved"}
+    finally:
+        client.delete_table(TableName=table_name)
+
+
+@pytest.mark.parametrize("projection", ["KEYS_ONLY", "INCLUDE", "ALL"])
+def test_matching_local_index_layout_restores_losslessly(tmp_path, dynamodb_local, projection):
+    del dynamodb_local
+    client = _client()
+    table_name = "z-matching-local-index"
+    _create_local_index_table(client, table_name, projection)
+    try:
+        item = {"pk": {"S": "p"}, "sk": {"S": "s"}, "secondary": {"S": "index-key"},
+                "payload": {"S": "x" * 100000}, "note": {"S": "projected-note"}}
+        client.put_item(TableName=table_name, Item=item)
+        backup = tmp_path / "matching-index"
+        manifest = backup_directory(client, backup, [table_name])
+        assert manifest.format_version == 2
+        assert manifest.tables[0].local_secondary_indexes[0].projection_type == projection
+        client.delete_item(TableName=table_name, Key={"pk": item["pk"], "sk": item["sk"]})
+        assert restore_directory(client, backup) == [(table_name, 1)]
+        assert client.get_item(TableName=table_name, Key={"pk": item["pk"], "sk": item["sk"]},
+                               ConsistentRead=True)["Item"] == item
+    finally:
+        client.delete_table(TableName=table_name)
+
+
+def test_version_one_archive_still_restores_without_local_indexes(tmp_path, dynamodb_local, clean_dynamodb):
+    del dynamodb_local, clean_dynamodb
+    client = _client()
+    user, _session = _put_items(client)
+    backup = tmp_path / "version-one"
+    backup_directory(client, backup, [USERS_TABLE])
+    path = backup / "manifest.json"
+    manifest = json.loads(path.read_text())
+    manifest["format_version"] = 1
+    for table in manifest["tables"]:
+        table.pop("local_secondary_indexes")
+    path.write_text(json.dumps(manifest))
+    client.delete_item(TableName=USERS_TABLE, Key={"user_id": user["user_id"], "sk": user["sk"]})
+    assert restore_directory(client, backup) == [(USERS_TABLE, 1)]
+    assert client.get_item(TableName=USERS_TABLE, Key={"user_id": user["user_id"], "sk": user["sk"]},
+                           ConsistentRead=True)["Item"]["payload"] == user["payload"]
