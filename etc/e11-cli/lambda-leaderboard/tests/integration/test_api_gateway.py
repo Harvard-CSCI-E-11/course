@@ -52,18 +52,20 @@ class TestApiGateway:           # pylint: disable=missing-class-docstring
         assert isinstance(data["opaque"], str)
 
     def test_api_ver(self, apigw_event_base):
-        """Test GET /ver endpoint"""
-        event = apigw_event_base.copy()
-        event["routeKey"] = "GET /ver"
-        event["rawPath"] = "/ver"
-        event["requestContext"]["http"]["path"] = "/ver"
-
-        ret = lambda_handler(event, None)
-
-        assert ret["statusCode"] == 200
-        # /ver returns just the version string, not JSON
-        assert isinstance(ret["body"], str)
-        assert len(ret["body"]) > 0
+        """Both version aliases return the identical packaged release report."""
+        responses = []
+        for path in ("/ver", "/version"):
+            event = apigw_event_base.copy()
+            event["routeKey"] = f"GET {path}"
+            event["rawPath"] = path
+            event["requestContext"]["http"]["path"] = path
+            responses.append(lambda_handler(event, None))
+        assert responses[0]["body"] == responses[1]["body"]
+        for response in responses:
+            assert response["statusCode"] == 200
+            assert response["body"].startswith("version: 1.1.0a1\n")
+            assert response["headers"]["content-type"] == "text/plain; charset=utf-8"
+            assert response["headers"]["cache-control"] == "no-store"
 
     def test_root_route(self, apigw_event_base):
         """Test GET / (root) endpoint"""

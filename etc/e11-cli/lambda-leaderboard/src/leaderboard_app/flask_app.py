@@ -19,8 +19,7 @@ from itsdangerous import Serializer,BadSignature,BadData
 from e11.e11_common import (LAB_TIMEZONE, grading_receipt_time, get_user_from_email, get_highest_grade_record,
                            previous_grade_for_email, add_user_log, add_leaderboard_log, add_grade, send_email2, EmailNotRegistered)
 from e11.e11core import grader
-
-__version__ = '1.0.0'
+from e11.version import VERSION_HEADERS, __version__, version_info
 
 BASE_SCORE = 4.5
 SCORE_WITH_MAGIC = 5.
@@ -214,8 +213,9 @@ def validate_registration(opaque):
         abort(404, 'data tampered: '+str(e))
 
 @app.route('/ver', methods=['GET'])
+@app.route('/version', methods=['GET'])
 def app_ver():
-    return __version__
+    return version_info().text(), 200, VERSION_HEADERS
 
 @app.route('/')
 def root():

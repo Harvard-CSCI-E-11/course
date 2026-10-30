@@ -30,12 +30,11 @@ from .e11core.utils import get_logger,smash_email
 from .e11core import grader
 
 from .doctor import run_doctor
+from .version import __version__
 
 
 # because of our argument processing, args is typically given and frequently not used.
 # pylint: disable=unused-argument, disable=invalid-name
-
-__version__ = '1.0.1'
 
 logger = get_logger()
 

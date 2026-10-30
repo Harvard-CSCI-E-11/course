@@ -1,5 +1,13 @@
 # Release notes
 
+## 1.1.0a1 — 2026-10-30: Public build and runtime diagnostics
+
+- Make `/ver` and `/version` identical aliases with plain-text, no-store responses.
+- Report the packaged Git checkout/commit and dirty marker, Python version,
+  architecture, environment and build/deployment timestamps without exposing secrets.
+- Stamp provenance before each Lambda wheel build and align CLI/Lambda project
+  and runtime versions at 1.1.0a1. Native bundle checks exercise both aliases.
+
 ## 2026-10-30: Quieter test and AWS SDK logging
 
 - Run CLI and Lambda `make check` targets with INFO live logging.

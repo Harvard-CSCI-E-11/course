@@ -1,6 +1,7 @@
 # ===== e11 home Makefile =====
 # Uses uv for dependency management and Make for SAM/AWS task running.
 # LOG_LEVEL selects application logging; boto3/botocore DEBUG stays suppressed.
+# STAGE_NAME and DEPLOYMENT_TIMESTAMP label the deployed version report.
 #
 # Note: everything must be in same AWS region
 
@@ -85,7 +86,7 @@ distclean:
 .PHONY: vend-e11
 vend-e11: install
 	@echo "Building the shared e11 wheel via uv"
-	( cd .. && uv build --wheel --out-dir dist )
+	$(MAKE) -C .. wheel
 	uv pip install --no-deps --reinstall --target src "$$(ls -t ../dist/e11-*.whl | head -1)"
 	/bin/rm -f src/home_app/e11.whl
 

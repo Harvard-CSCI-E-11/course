@@ -356,6 +356,24 @@ The package defines two CLI entry points in `pyproject.toml`:
 The shared package keeps `boto3` and `botocore` at INFO even when application or
 root logging is DEBUG, preserving SDK informational messages, warnings and errors.
 
+## Version and build diagnostics
+
+`/ver` and `/version` return the same plain-text, non-cacheable report on each
+dashboard host. The report includes the release, Git checkout/ref and full commit,
+dirty working-tree marker, Python version, architecture, environment, and UTC
+build/deployment timestamps. Production and staging report their own deployments.
+The existing POST `version` API retains its version/deployment fields for the CLI.
+
+Both Lambda Makefiles call `make wheel`, which stamps public Git/build provenance
+into ignored `e11/_build_info.json` before packaging. Lambda reads this artifact;
+it does not need Git or a checkout at runtime. Builds outside a Git repository
+report unknown Git fields. No secrets, arbitrary environment values or local paths
+are included. `make lambda-build-check` verifies both aliases and embedded commit
+in the actual Linux arm64 bundles.
+
+`STAGE_NAME` identifies the deployed environment; `DEPLOYMENT_TIMESTAMP` is supplied
+by the SAM deployment wrapper. `LOG_LEVEL` controls application logging separately.
+
 ## Spring 2027 deadlines and late grades
 
 All deadlines are **12:00 noon America/New_York** on these Mondays:

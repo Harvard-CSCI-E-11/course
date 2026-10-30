@@ -63,6 +63,7 @@ from e11.e11core.constants import (
 )
 from e11.e11core.utils import get_log_level, get_logger
 from e11.main import __version__
+from e11.version import VERSION_HEADERS, version_info
 
 from . import api, email_views, oidc, sessions
 from .api import make_presigned_url, resp_json
@@ -734,10 +735,11 @@ def lambda_handler(event, context):
                 case ("GET", "/lab8"):
                     return redirect(LAB_CONFIG["lab8"]["redirect"])
 
-                case ("GET", "/version"):
+                case ("GET", "/ver" | "/version"):
                     return resp_text(
                         HTTP_OK,
-                        f"version: {__version__} of {os.environ.get('DEPLOYMENT_TIMESTAMP')}\n",
+                        version_info().text(),
+                        headers=VERSION_HEADERS,
                     )
 
                 # This must be last - catch all GETs, check for /static

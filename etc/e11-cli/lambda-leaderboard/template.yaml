@@ -29,6 +29,7 @@ Globals:
       Variables:
         LOG_LEVEL: !Ref LogLevel
         DEPLOYMENT_TIMESTAMP: !Ref DeploymentTimestamp
+        STAGE_NAME: !FindInMap [EnvConfig, !Ref EnvironmentName, StageName]
         LEADERBOARD_TABLE_NAME: !Ref LeaderboardTableName
         USERS_TABLE_NAME: !Ref UsersTableName
 
