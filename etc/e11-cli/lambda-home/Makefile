@@ -1,5 +1,6 @@
 # ===== e11 home Makefile =====
 # Uses uv for dependency management and Make for SAM/AWS task running.
+# LOG_LEVEL selects application logging; boto3/botocore DEBUG stays suppressed.
 #
 # Note: everything must be in same AWS region
 
@@ -57,7 +58,7 @@ lint: vend-e11
 
 check: vend-e11 lint
 	@echo "--- Running tests with pytest ---"
-	uv run --locked pytest -q --cov=. --cov-report=term --cov-report=xml --junitxml=junit.xml -o junit_family=legacy --log-cli-level=DEBUG tests/
+	uv run --locked pytest -q --cov=. --cov-report=term --cov-report=xml --junitxml=junit.xml -o junit_family=legacy --log-cli-level=INFO tests/
 
 .PHONY: test-email
 test-email: vend-e11

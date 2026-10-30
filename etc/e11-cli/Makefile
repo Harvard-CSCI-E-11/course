@@ -2,6 +2,7 @@
 #
 # The e11 module runs on Python 3.14 on student machines and AWS Lambda.
 # COURSE_ROOT optionally overrides the local student checkout (default ~/course).
+# LOG_LEVEL selects application logging; boto3/botocore DEBUG stays suppressed.
 
 # DynamoDB local stuff (see end)
 DYNAMODB_LOCAL_ENDPOINT=http://localhost:8000/
@@ -36,7 +37,7 @@ lint-all:
 
 check: .venv/pyvenv.cfg
 	make lint
-	uv run --locked pytest -q --cov=e11 --cov-report=term --cov-report=xml --junitxml=junit.xml -o junit_family=legacy tests/
+	uv run --locked pytest -q --cov=e11 --cov-report=term --cov-report=xml --junitxml=junit.xml -o junit_family=legacy --log-cli-level=INFO tests/
 
 check-all:
 	make check

@@ -3,6 +3,7 @@
 # Container builds produce Linux arm64 dependencies rather than workstation wheels.
 # Deployments preserve TOML overrides and add a UTC release timestamp.
 # AWS_PROFILE/AWS_REGION select the account credentials and region for log retention.
+# LOG_LEVEL selects application logging; boto3/botocore DEBUG stays suppressed.
 AWS_PROFILE ?= fas
 AWS_REGION ?= us-east-1
 
@@ -14,7 +15,7 @@ validate:
 	sam validate --config-file samconfig-prod.toml -t template.yaml --lint
 
 check: install vend-e11
-	uv run --locked pytest --log-cli-level=DEBUG
+	uv run --locked pytest --log-cli-level=INFO
 
 lint: install vend-e11 validate
 	PYTHONPATH=src uv run --locked pylint leaderboard_app

@@ -349,6 +349,13 @@ The package defines two CLI entry points in `pyproject.toml`:
 * `e11` - Main student CLI command
 * `e11admin` - Staff administration CLI command
 
+## Logging
+
+`make check` streams test logs at INFO in the CLI and both Lambda projects.
+`LOG_LEVEL` selects application logging (default INFO; DEBUG for diagnostics).
+The shared package keeps `boto3` and `botocore` at INFO even when application or
+root logging is DEBUG, preserving SDK informational messages, warnings and errors.
+
 ## Spring 2027 deadlines and late grades
 
 All deadlines are **12:00 noon America/New_York** on these Mondays:

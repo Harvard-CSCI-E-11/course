@@ -1,5 +1,11 @@
 # Release notes
 
+## 2026-10-30: Quieter test and AWS SDK logging
+
+- Run CLI and Lambda `make check` targets with INFO live logging.
+- Suppress boto3/botocore DEBUG messages in shared package initialization while
+  retaining SDK INFO/warnings/errors and independently configured application logs.
+
 ## 2026-10-30: Lab document redirects
 
 - Point `/lab0` through `/lab8` to their `doc/Lab_N.md` files on GitHub main
