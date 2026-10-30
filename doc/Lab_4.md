@@ -312,7 +312,7 @@ NOTE: Make sure that you set the port to be 8004\! (Each lab uses a different po
 
 Similar to lab3, you can find this file at `~/course/lab4/lab4-nginx-patch`.
 
-You may wish to review [Lab \#3](Lab%20%233.md) for instructions on how to edit this file.
+You may wish to review [Lab \#3](Lab_3.md) for instructions on how to edit this file.
 
 Test the config file with:
 
