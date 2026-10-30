@@ -1,29 +1,29 @@
 """
-Test to validate that the Lambda handler can be imported correctly with the vendored e11 wheel.
-
-This test simulates the actual deployment environment by importing the Lambda handler
-module the way AWS Lambda does: `home_app.home.lambda_handler`
-
-This test must be run after 'vend-e11' has been executed to ensure the wheel exists.
+Fast import checks for the prepared Lambda source tree.
+Make installs the shared e11 package into src before these checks run.
+The development environment supplies dependencies and testing tools here.
+These checks catch import refactors without claiming artifact compatibility.
+The separate lambda-build-check target verifies actual Linux arm64 bundles.
+Run vend-e11 first so that the prepared package exists.
 """
 
 import sys
 from pathlib import Path
 
 
-def _setup_wheel_path():
-    """Add the vendored wheel to sys.path to simulate Lambda environment."""
-    wheel_path = Path(__file__).parent.parent / "src" / "home_app" / "e11.whl"
+def _setup_bundle_path():
+    """Add the bundle source root used by normal Lambda package imports."""
+    bundle_path = Path(__file__).parent.parent / "src"
 
-    if not wheel_path.exists():
+    if not (bundle_path / "e11" / "__init__.py").exists():
         raise FileNotFoundError(
-            f"e11.whl not found at {wheel_path}. "
-            "Run 'make vend-e11' first to create the wheel."
+            f"Vendored e11 package not found in {bundle_path}. "
+            "Run 'make vend-e11' first to install the package."
         )
 
-    wheel_str = str(wheel_path)
-    if wheel_str not in sys.path:
-        sys.path.insert(0, wheel_str)
+    bundle_str = str(bundle_path)
+    if bundle_str not in sys.path:
+        sys.path.insert(0, bundle_str)
 
 
 def test_lambda_handler_imports():
@@ -33,7 +33,7 @@ def test_lambda_handler_imports():
     AWS Lambda imports: home_app.home.lambda_handler
     This will fail if any imports in home.py are broken (e.g., the S3_BUCKET import issue).
     """
-    _setup_wheel_path()
+    _setup_bundle_path()
 
     # Import the Lambda handler module the way AWS Lambda does
     # This will trigger all imports in home.py, including the problematic grader import
@@ -51,7 +51,7 @@ def test_grader_imports_s3_bucket_correctly():
     This was the original bug - grader.py was trying to import S3_BUCKET
     from e11.e11core.constants, but it's actually in e11.e11_common.
     """
-    _setup_wheel_path()
+    _setup_bundle_path()
 
     # Import grader module - this will fail if S3_BUCKET import is broken
     from e11.e11core import grader  # pylint: disable=import-outside-toplevel

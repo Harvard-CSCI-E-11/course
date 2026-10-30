@@ -25,13 +25,15 @@ import os
 from typing import Any
 
 from botocore.exceptions import ClientError
-from e11.e11_common import secretsmanager_client, sqs_client
-from e11.e11core.utils import get_logger
 from itsdangerous import BadSignature, Signer
+
+from e11.e11_common import A, secretsmanager_client, sqs_client
+from e11.e11core.utils import get_logger
 
 from . import api
 
 LOGGER = get_logger("home")
+SENT_TIMESTAMP = "SentTimestamp"
 # SQS_QUEUE_ARN = os.environ.get("SQS_QUEUE_ARN", "")
 
 
@@ -354,6 +356,7 @@ def handle_sqs_event(event: dict[str, Any], context: Any) -> dict[str, Any]:
         sqs_event = {
             "requestContext": {
                 "stage": "sqs",
+                A.REQUEST_TIME_EPOCH: record.get("attributes", {}).get(SENT_TIMESTAMP),
                 "http": {
                     "method": method,
                     "sourceIp": record.get("attributes", {}).get(

@@ -4,11 +4,12 @@ Test for queue_grade function and SQS message processing.
 
 import json
 import uuid
+from datetime import UTC
 from unittest.mock import MagicMock
 
 import pytest
-from e11.e11_common import A, create_new_user
 
+from e11.e11_common import A, create_new_user
 from home_app import home, sqs_support
 
 
@@ -160,7 +161,7 @@ def test_user(fake_aws, dynamodb_local):
         },
     )
     # create_new_user generates a course_key, so we need to use the one it created
-    return {"email": test_email, "course_key": user["course_key"]}
+    return {"email": test_email, "course_key": user["course_key"], "user_id": user["user_id"]}
 
 
 @pytest.fixture
@@ -224,18 +225,12 @@ def test_queue_grade_handles_sqs_event(
 
     monkeypatch.setattr(api_module, "get_pkey_pem", mock_get_pkey_pem)
 
-    # Mock add_user_log and add_grade to avoid DynamoDB calls
-    def mock_add_user_log(event, user_id, message, **extra):
-        pass
-
-    def mock_add_grade(user, lab, public_ip, summary):
-        pass
+    # Grade/log persistence uses real DynamoDB Local; only SSH/SES are stubbed.
+    from datetime import datetime
 
     from e11 import e11_common
 
-    # Reload the module to pick up the mocked functions
-    monkeypatch.setattr(e11_common, "add_user_log", mock_add_user_log)
-    monkeypatch.setattr(e11_common, "add_grade", mock_add_grade)
+    queued_at = datetime(2027, 2, 1, 16, 59, 59, tzinfo=UTC)
 
     # Mock send_email2 - it's imported from e11_common in api.py
     def mock_send_email_api(to_addrs, email_subject, email_body, *, user_id):
@@ -265,7 +260,7 @@ def test_queue_grade_handles_sqs_event(
                 "messageId": result["MessageId"],
                 "body": mock_sqs.messages[0]["Body"],
                 "receiptHandle": f"receipt-{result['MessageId']}",
-                "attributes": {"SenderId": "test-sender"},
+                "attributes": {"SenderId": "test-sender", "SentTimestamp": str(int(queued_at.timestamp() * 1000))},
                 "eventSource": "aws:sqs",
             }
         ]
@@ -283,6 +278,13 @@ def test_queue_grade_handles_sqs_event(
     # Verify the response
     assert response["ok"] is True
     assert len(response["batchItemFailures"]) == 0
+    rows = e11_common.users_table.query(
+        KeyConditionExpression=e11_common.Key(e11_common.A.USER_ID).eq(test_user["user_id"]),
+        ConsistentRead=True,
+    )["Items"]
+    grade = next(row for row in rows if row[e11_common.A.SK].startswith("grade#"))
+    assert grade[e11_common.A.REQUESTED_AT] == queued_at.isoformat()
+    assert grade[e11_common.A.LATE] is False
 
     # Verify email was sent
     assert len(mock_ses) == 1

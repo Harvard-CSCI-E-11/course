@@ -30,6 +30,9 @@ from typing import Any
 
 import jinja2
 from boto3.dynamodb.conditions import Key
+from itsdangerous import BadSignature, SignatureExpired
+from jinja2 import Environment, FileSystemLoader, TemplateNotFound
+
 from e11.e11_common import (
     LAB_CONFIG,
     LAB_TIMEZONE,
@@ -60,8 +63,6 @@ from e11.e11core.constants import (
 )
 from e11.e11core.utils import get_log_level, get_logger
 from e11.main import __version__
-from itsdangerous import BadSignature, SignatureExpired
-from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
 from . import api, email_views, oidc, sessions
 from .api import make_presigned_url, resp_json

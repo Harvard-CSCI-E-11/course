@@ -310,11 +310,13 @@ make lint
 make check-all
 ```
 
-## Vendored Wheel Pattern
+## Shared Lambda package
 
-**IMPORTANT**: The `e11/` package is built into a wheel and vendored into Lambda functions:
-* `lambda-home/src/home_app/e11.whl`
-* `lambda-leaderboard/src/leaderboard_app/e11.whl`
+Both Lambda projects declare the local `e11` dependency through uv. Their Makefiles
+build its wheel and install the package directly into `src/e11/` using
+`uv pip install --no-deps --target src`. Runtime manifests include its dependency
+graph but exclude the local e11 path, so SAM never needs files outside CodeUri.
+The normal Lambda import path finds the package without a custom `PYTHONPATH`.
 
 After modifying `e11/` or `e11core/`:
 ```bash
@@ -347,7 +349,63 @@ The package defines two CLI entry points in `pyproject.toml`:
 * `e11` - Main student CLI command
 * `e11admin` - Staff administration CLI command
 
+## Spring 2027 deadlines and late grades
+
+All deadlines are **12:00 noon America/New_York** on these Mondays:
+
+| Lab | Deadline |
+| --- | --- |
+| 0 | February 1, 2027 |
+| 1 | February 8, 2027 |
+| 2 | February 15, 2027 |
+| 3 | February 22, 2027 |
+| 4 | March 8, 2027 |
+| 5 | March 29, 2027 |
+| 6 | April 12, 2027 |
+| 7 | April 26, 2027 |
+| 8 | May 10, 2027 |
+
+Late grading is allowed, capped at **89/100 (B+), or 4.45 of 5 lab points**.
+Lower raw scores are unchanged; noon itself is on time. Receipt time is captured
+from API Gateway or SQS before processing. The shared writer applies the policy to HTTP, SQS and leaderboard
+grades and retains raw/awarded scores, deadline and request time. Email and Canvas
+use the awarded score; an existing higher grade still wins.
+
+## Lambda builds, deploy parameters and log retention
+
+Both Lambda Makefiles use locked `uv export --no-dev --no-emit-project --no-emit-package e11 --no-hashes`
+to generate `src/requirements.txt` at SAM's CodeUri root; they vendor e11 separately.
+`make build` builds Linux arm64 dependencies using a running Docker/Finch engine.
+`make lambda-build-check` here builds both bundles and invokes their public version
+routes locally with dummy AWS credentials; CI runs the same check. At the repository
+root, `make uv-check-all` verifies maintained lockfiles without upgrading them.
+The bulk uv sync/lock/update targets stop at the first failing project.
+
+Deploy targets first run the full DynamoDB Local/MinIO suite. They use `sam_deploy.py` to preserve all configured template overrides,
+including empty values, while adding a UTC timestamp. After deployment they set
+180-day Lambda log retention. Staging intentionally shares production course data.
+`LEADERBOARD_TABLE_NAME` consistently selects the leaderboard table.
+
+`make lambda-log-retention-plan` previews current and historical E11 log groups;
+`make lambda-log-retention` applies and reads back 180-day retention. Both are also
+available from the repository root. Existing groups are reused; missing current
+groups are created without introducing CloudFormation ownership collisions.
+Default discovery includes legacy `home-app-` groups. No log contents are read.
+
+| Variable | Purpose |
+| --- | --- |
+| `AWS_PROFILE` | Existing log-operation credential profile; default `fas` |
+| `AWS_REGION` | Log-operation region; default `us-east-1` |
+| `SAM_CONFIG` | Home build TOML selection; default `samconfig-prod.toml`; stage deploy chooses stage explicitly |
+| `LOG_STACK` | Optional stack scope: `home-app-prod`, `home-app-stage`, `leaderboard`; omitted selects all |
+
+The log command checks account 586794483136 before writes. Events older than 180
+days expire under the policy; AWS physical deletion normally takes up to 72 hours
+and can take longer. It does not purge recent history. PITR, backups, backup plans
+and S3 versioning remain on the January checklist in the root TODO file.
+
 ## Related Documentation
+
 * [ARCHITECTURE.md](ARCHITECTURE.md) - Detailed system architecture and data flows
 * [TESTING_STRATEGY.md](TESTING_STRATEGY.md) - Testing approach and patterns
 * [e11/e11admin/README.md](e11/e11admin/README.md) - Admin CLI documentation

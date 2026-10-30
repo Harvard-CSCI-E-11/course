@@ -13,9 +13,10 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import jwt
 import requests
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+
 from e11 import e11_common
 from e11.e11core.utils import get_logger
-from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 from .common import get_public_host
 

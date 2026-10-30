@@ -51,6 +51,25 @@ jobs:
       - name: Check CLI and Lambdas with DynamoDB Local and MinIO
         run: make email-check
 
+      - name: Check all maintained uv lockfiles
+        run: make -C ../.. uv-check-all
+
+      - name: Install SAM CLI for deployment-bundle checks
+        uses: aws-actions/setup-sam@v2
+        with:
+          version: "1.163.0"
+
+      - name: Enable Linux arm64 container emulation
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Build and invoke the actual Lambda bundles locally
+        run: make lambda-build-check
+        env:
+          SAM_CLI_TELEMETRY: "0"
+          AWS_EC2_METADATA_DISABLED: "true"
+
       - name: list coverage files
         run: |
           find . -name coverage.xml -ls

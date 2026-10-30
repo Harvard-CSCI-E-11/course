@@ -14,7 +14,7 @@ from types import FunctionType
 
 import paramiko.ssh_exception
 
-from e11.e11_common import S3_BUCKET
+from e11.e11_common import S3_BUCKET, LATE_GRADE_MAX_PERCENT, LATE_GRADE_MAX_SCORE
 
 from .assertions import TestFail
 from .testrunner import TestRunner
@@ -253,6 +253,9 @@ def create_email(summary, note=None, previous_best=None):
         body_lines += [note]
         body_lines += [""]
     body_lines += [subject]
+    if summary.get("late"):
+        body_lines += ["", f"Late submission: maximum {LATE_GRADE_MAX_PERCENT}/100 "
+                       f"({LATE_GRADE_MAX_SCORE}/{POINTS_PER_LAB}). Deadline: {summary['deadline']}."]
     if previous_best is not None:
         body_lines += [""]
         body_lines += [

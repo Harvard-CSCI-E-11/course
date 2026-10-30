@@ -1,5 +1,21 @@
 # Release notes
 
+## 2026-10-29: Lambda deployment and Spring 2027 grading corrections
+
+- Export locked uv runtime requirements at each Lambda CodeUri root, including
+  the declared shared e11 dependency graph. Install its wheel as a normal package
+  and remove the custom wheel PYTHONPATH. Build and invoke actual Linux arm64
+  bundles through Make and CI; retained scripts/Makefiles use uv.
+- Preserve every configured SAM template parameter when adding the deployment
+  timestamp; use LEADERBOARD_TABLE_NAME consistently.
+- Set Spring 2027 lab deadlines to noon Eastern. Accept all late grades with an
+  89% ceiling (4.45/5), retaining raw/awarded scores and timing evidence. Existing
+  higher results still win; email and Canvas use the awarded grade.
+- Add scoped 180-day Lambda-log retention operations and apply them after deploy.
+  January recovery tasks and the requested security/reliability proposals are
+  recorded in the root TODO. Shared staging data and the public leaderboard
+  signing key remain intentional.
+
 ## 2026-10-29: Student email archive
 
 - Archive every outgoing student email in private S3 with a DynamoDB subject/time

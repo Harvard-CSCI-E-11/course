@@ -43,13 +43,20 @@ dns-logging-enable dns-logging-status dns-logging-verify dns-logs dns-log-report
 	@$(MAKE) --silent --no-print-directory -C etc/e11-cli $@
 
 update-all:
-	for dir in $(PYPROJECT_DIRS) ; do (echo "=== $$dir ===" ; cd $$dir && uv lock --upgrade) ; done
+	@set -e; for dir in $(PYPROJECT_DIRS) ; do (echo "=== $$dir ===" ; cd $$dir && uv lock --upgrade) ; done
 
 sync-all:
-	for dir in $(PYPROJECT_DIRS) ; do (echo "=== $$dir ===" ; cd $$dir && uv sync --locked) ; done
+	@set -e; for dir in $(PYPROJECT_DIRS) ; do (echo "=== $$dir ===" ; cd $$dir && uv sync --locked) ; done
 
 lock-all:
-	for dir in $(PYPROJECT_DIRS) ; do (echo "=== $$dir ===" ; cd $$dir && uv lock) ; done
+	@set -e; for dir in $(PYPROJECT_DIRS) ; do (echo "=== $$dir ===" ; cd $$dir && uv lock) ; done
+
+# Check every maintained uv lockfile without upgrading or installing dependencies.
+uv-check-all:
+	@set -e; for dir in $(PYPROJECT_DIRS); do (echo "=== $$dir ==="; cd $$dir && uv lock --check); done
+
+lambda-build-check lambda-log-retention-plan lambda-log-retention lambda-log-retention-test:
+	$(MAKE) -C etc/e11-cli $@
 
 install:
 	$(MAKE) -C etc/e11-cli lint
@@ -61,4 +68,5 @@ clean-all:
 
 distclean-all: clean-all
 .PHONY: lint-all check-all update-all sync-all lock-all install clean-all distclean-all dns-plan dns-delete dns-test dns-lint
+.PHONY: uv-check-all lambda-build-check lambda-log-retention-plan lambda-log-retention lambda-log-retention-test
 .PHONY: dns-logging-enable dns-logging-status dns-logging-verify dns-logs dns-log-report dns-logging-test dns-logging-lint

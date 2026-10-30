@@ -10,9 +10,9 @@ This test suite validates:
 """
 
 import pytest
-from e11.e11_common import LAB_REDIRECTS
 from test_utils import create_lambda_event
 
+from e11.e11_common import LAB_REDIRECTS
 from home_app import home
 
 
@@ -763,7 +763,6 @@ def test_parse_event_handles_invalid_base64():
 def test_api_dispatch_routes_all_actions():
     """Test that dispatch function routes all known actions correctly"""
     from e11.e11core.constants import API_PATH
-
     from home_app.api import APINotAuthenticated, dispatch
 
     # Create minimal event and context
@@ -806,7 +805,6 @@ def test_api_dispatch_routes_all_actions():
 def test_api_dispatch_unknown_action():
     """Test that dispatch returns 400 for unknown actions"""
     from e11.e11core.constants import API_PATH
-
     from home_app.api import dispatch
 
     event = {"rawPath": API_PATH}
@@ -822,7 +820,6 @@ def test_api_dispatch_unknown_action():
 def test_api_dispatch_wrong_method():
     """Test that dispatch handles wrong HTTP methods"""
     from e11.e11core.constants import API_PATH
-
     from home_app.api import dispatch
 
     event = {"rawPath": API_PATH}

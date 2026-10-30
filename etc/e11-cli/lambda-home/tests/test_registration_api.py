@@ -3,9 +3,6 @@ import os
 import uuid
 
 import pytest
-from e11.e11_common import create_new_user
-from e11.e11core.constants import COURSE_DOMAIN, HTTP_FORBIDDEN
-from e11.e11core.utils import smash_email
 from test_utils import (
     assert_response_success,
     assert_route53_called,
@@ -17,6 +14,9 @@ from test_utils import (
     create_test_config_file,
 )
 
+from e11.e11_common import create_new_user
+from e11.e11core.constants import COURSE_DOMAIN, HTTP_FORBIDDEN
+from e11.e11core.utils import smash_email
 from home_app import api
 from home_app.home import (
     EMAIL_SUBJECT_NEW_DNS_RECORDS,
@@ -60,9 +60,8 @@ def test_registration_api_flow(monkeypatch, fake_aws, dynamodb_local):
     mock_aws = MockedAWSServices()
 
     # Replace Route53 and SES mocks with trackable ones
-    from e11 import e11_common
-
     import home_app.api as api_module
+    from e11 import e11_common
 
     # Create trackable Route53 mock
     class TrackableRoute53:
@@ -255,9 +254,8 @@ def test_registration_api_returning_user_flow(monkeypatch, fake_aws, dynamodb_lo
     mock_aws = MockedAWSServices()
 
     # Replace Route53 and SES mocks with trackable ones
-    from e11 import e11_common
-
     import home_app.api as api_module
+    from e11 import e11_common
 
     # Create trackable Route53 mock
     class TrackableRoute53:

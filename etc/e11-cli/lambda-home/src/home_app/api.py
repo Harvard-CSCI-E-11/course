@@ -16,13 +16,14 @@ from typing import Any
 
 import paramiko.ssh_exception
 from botocore.exceptions import ClientError
+from mypy_boto3_route53.type_defs import ChangeBatchTypeDef, ChangeTypeDef
+
 from e11.e11_common import (
     CSCIE_BOT,
     DASHBOARD,
     DNS_TTL,
     EMAIL_BODY,
     HOSTED_ZONE_ID,
-    LAB_CONFIG,
     LAB_TIMEZONE,
     S3_BUCKET,
     A,
@@ -33,6 +34,8 @@ from e11.e11_common import (
     delete_image,
     get_highest_grade_record,
     get_user_from_email,
+    grading_receipt_time,
+    previous_grade_for_email,
     route53_client,
     s3_client,
     secretsmanager_client,
@@ -58,7 +61,6 @@ from e11.e11core.e11ssh import E11Ssh
 from e11.e11core.utils import get_logger, smash_email
 from e11.email_archive import MESSAGE_ID, SES_MESSAGE_ID
 from e11.main import __version__
-from mypy_boto3_route53.type_defs import ChangeBatchTypeDef, ChangeTypeDef
 
 from .sessions import (
     delete_session,
@@ -83,14 +85,6 @@ DOMAIN_SUFFIXES = [
 LastEvaluatedKey = "LastEvaluatedKey"  # pylint: disable=invalid-name
 
 MAX_IMAGE_SIZE_BYTES = 10_000_000
-
-
-def _format_grade_event_timestamp(sk: str) -> str:
-    timestamp = sk.split("#", 2)[2]
-    timestamp = timestamp.replace("T", " ")
-    if "." in timestamp:
-        timestamp = timestamp.split(".", 1)[0]
-    return timestamp
 
 
 def get_pkey_pem(key_name):
@@ -376,10 +370,11 @@ def api_grader(event, context, payload):
     Get ready for grading, run the grader, store the results in the users table.
     sk format: "grade#lab2#time"
 
-    Rejects grading requests if the lab deadline has passed, unless the request
-    comes from SQS (which allows late grading for administrative purposes).
+    Late requests remain accepted; shared grade storage applies the 89% cap.
+    Capture receipt time before SSH work so crossing noon during grading is fair.
     """
     LOGGER.info("api_grader event=%s context=%s payload=%s", event, context, payload)
+    requested_at = grading_receipt_time(event.get("requestContext", {})) or datetime.now(LAB_TIMEZONE)
     user = validate_payload(payload)
     if user.email is None:
         LOGGER.error("user.email is None")
@@ -389,40 +384,6 @@ def api_grader(event, context, payload):
 
     lab = payload["lab"]
     note = payload.get("note")
-
-    # Check if request is from SQS (allow late grading for SQS requests)
-    is_sqs_request = event.get("source") == "sqs"
-
-    # Check deadline unless this is an SQS request
-    if not is_sqs_request:
-        # Normalize lab name to "lab0", "lab1", etc.
-        if lab.startswith("lab"):
-            lab_key = lab
-        else:
-            # Extract number if lab is just a number or "lab0" format
-            lab_num = lab.replace("lab", "").strip()
-            lab_key = f"lab{lab_num}"
-
-        if lab_key in LAB_CONFIG:
-            deadline_str = LAB_CONFIG[lab_key]["deadline"]
-            # Deadline is in Eastern time (no timezone in string)
-            deadline = datetime.fromisoformat(deadline_str).replace(tzinfo=LAB_TIMEZONE)
-            now = datetime.now(LAB_TIMEZONE)
-            if now > deadline:
-                LOGGER.warning(
-                    "Grading request for %s rejected: deadline %s has passed (current time: %s)",
-                    lab,
-                    deadline,
-                    now,
-                )
-                return resp_json(
-                    HTTP_FORBIDDEN,
-                    {
-                        "error": True,
-                        "message": f"Lab {lab} deadline has passed. The deadline was {deadline_str}.",
-                        "deadline": deadline_str,
-                    },
-                )
 
     if user.public_ip is None:
         send_email2(
@@ -449,23 +410,15 @@ def api_grader(event, context, payload):
         return resp_json(HTTP_INTERNAL_ERROR, summary)
     LOGGER.info("summary=%s", summary)
 
+    add_user_log(None, user.user_id, f"Grading lab {lab} ends")
+    add_grade(user, lab, user.public_ip, summary, note=note, requested_at=requested_at)
+
     previous_best_record = None
     if float(summary.get("score", 0)) < 5.0:
         previous_best_record = get_highest_grade_record(user, lab)
 
-    add_user_log(None, user.user_id, f"Grading lab {lab} ends")
-    add_grade(user, lab, user.public_ip, summary, note=note)
-
     # Send email
-    previous_best = None
-    if previous_best_record is not None:
-        previous_best_score = float(previous_best_record.get(A.SCORE, 0))
-        current_score = float(summary.get("score", 0))
-        if previous_best_score > current_score:
-            previous_best = {
-                "score": previous_best_score,
-                "date": _format_grade_event_timestamp(str(previous_best_record[A.SK])),
-            }
+    previous_best = previous_grade_for_email(previous_best_record, float(summary[A.SCORE]))
     (subject, body) = grader.create_email(summary, note, previous_best=previous_best)
     send_email2(user_id=user.user_id, to_addrs=user.emails(), email_subject=subject, email_body=body)
     return resp_json(HTTP_OK, {"summary": summary})

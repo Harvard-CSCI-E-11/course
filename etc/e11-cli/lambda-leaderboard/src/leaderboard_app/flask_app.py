@@ -16,7 +16,8 @@ from botocore.exceptions import ClientError
 import boto3
 from itsdangerous import Serializer,BadSignature,BadData
 
-from e11.e11_common import (get_user_from_email, get_grade, add_user_log, add_leaderboard_log, add_grade, send_email2, EmailNotRegistered)
+from e11.e11_common import (LAB_TIMEZONE, grading_receipt_time, get_user_from_email, get_highest_grade_record,
+                           previous_grade_for_email, add_user_log, add_leaderboard_log, add_grade, send_email2, EmailNotRegistered)
 from e11.e11core import grader
 
 __version__ = '1.0.0'
@@ -28,10 +29,10 @@ LAB='lab7'
 
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), 'templates')
 INACTIVE_SECONDS = 120
-DEFAULT_LEADERBOARD_TABLE = 'Leaderboard'
+DEFAULT_LEADERBOARD_TABLE_NAME = 'Leaderboard'
 
 dynamodb = boto3.resource( 'dynamodb')
-leaderboard_table = dynamodb.Table(os.environ.get('LEADERBOARD_TABLE', DEFAULT_LEADERBOARD_TABLE))
+leaderboard_table = dynamodb.Table(os.environ.get('LEADERBOARD_TABLE_NAME', DEFAULT_LEADERBOARD_TABLE_NAME))
 SECRET_KEY = 'to be changed'    # for its dangerous
 MAX_ITEMS = 100                 # we have 90 students in the class
 NO_MESSAGE = None
@@ -246,6 +247,7 @@ def api_post_register():
     """POST METHOD:
     Check the posted email and class key. If they are correct, grade the assignment.
     Then return the registration of the name and secret key. Store hashed key in database"""
+    requested_at = grading_receipt_time(request.environ.get('apig_wsgi.request_context', {})) or datetime.now(LAB_TIMEZONE)
     email = request.form.get('email','')
     course_key = request.form.get('course_key','')
 
@@ -287,9 +289,7 @@ def api_post_register():
         tests[1]['status'] = 'fail'
         fails = ['User agent set to include the string "magic"']
 
-    # if score is higher than current score, record that
-    old_score = get_grade(user, LAB)
-    app.logger.debug("user=%s score=%s, old_score=%s",user,score,old_score)
+    previous_record = get_highest_grade_record(user, LAB)
     summary = {'lab':LAB,
                'passes':passes,
                'fails': fails,
@@ -299,8 +299,8 @@ def api_post_register():
                'ctx':{},
                'error':False}
 
-    add_grade(user, LAB, request.remote_addr, summary)
-    (subject, body) = grader.create_email(summary)
+    add_grade(user, LAB, request.remote_addr, summary, requested_at=requested_at)
+    (subject, body) = grader.create_email(summary, previous_best=previous_grade_for_email(previous_record, summary['score']))
     send_email2(user_id=user.user_id, to_addrs=user.emails(),
                email_subject = subject,
                email_body=body)

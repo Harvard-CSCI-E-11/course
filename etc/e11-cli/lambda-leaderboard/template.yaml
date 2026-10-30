@@ -28,7 +28,6 @@ Globals:
     Environment:
       Variables:
         LOG_LEVEL: !Ref LogLevel
-        PYTHONPATH: "/var/task/leaderboard_app/e11.whl"
         DEPLOYMENT_TIMESTAMP: !Ref DeploymentTimestamp
         LEADERBOARD_TABLE_NAME: !Ref LeaderboardTableName
         USERS_TABLE_NAME: !Ref UsersTableName
@@ -95,8 +94,6 @@ Resources:
     Type: AWS::Serverless::Function
     Metadata:
       BuildMethod: python3.14
-      BuildProperties:
-        RequirementsFile: leaderboard_app/requirements.txt  # relative to CodeUri (src/)
     Properties:
       Runtime: python3.14
       CodeUri: src/

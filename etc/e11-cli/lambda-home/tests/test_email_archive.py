@@ -26,12 +26,12 @@ import pytest
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 from botocore.stub import ANY, Stubber
-from e11 import e11_common as common
-from e11 import email_archive as archive
-from e11.e11core.constants import API_PATH
 from pydantic import BaseModel, ConfigDict, Field
 from test_utils import create_lambda_event
 
+from e11 import e11_common as common
+from e11 import email_archive as archive
+from e11.e11core.constants import API_PATH
 from home_app import api, email_views, home, sessions
 from home_app.common import COOKIE_NAME
 
@@ -467,6 +467,7 @@ def test_diagnostics_return_only_safe_status_fields(mail_services, monkeypatch):
 
 def test_only_one_outbound_transport_path():
     root = Path(__file__).resolve().parents[2]
+    generated = [root / "lambda-home/src/e11", root / "lambda-leaderboard/src/e11"]
     calls = []
     for directory in [
         root / "e11",
@@ -474,6 +475,8 @@ def test_only_one_outbound_transport_path():
         root / "lambda-leaderboard/src",
     ]:
         for path in directory.rglob("*.py"):
+            if any(path.is_relative_to(package) for package in generated):
+                continue  # uv-installed copies of the canonical shared package.
             for node in ast.walk(ast.parse(path.read_text())):
                 if (
                     isinstance(node, ast.Call)

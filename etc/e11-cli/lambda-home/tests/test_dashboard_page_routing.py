@@ -10,9 +10,9 @@ import uuid
 
 import pytest
 import requests
-from e11.e11_common import create_new_user
 from test_utils import create_lambda_event
 
+from e11.e11_common import create_new_user
 from home_app import home, oidc
 
 

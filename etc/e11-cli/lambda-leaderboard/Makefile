@@ -1,4 +1,12 @@
-.PHONY: install validate lint check test clean
+# Build the leaderboard with uv-managed runtime dependencies and a vendored e11 wheel.
+# SAM reads the exported manifest at the CodeUri root, src/requirements.txt.
+# Container builds produce Linux arm64 dependencies rather than workstation wheels.
+# Deployments preserve TOML overrides and add a UTC release timestamp.
+# AWS_PROFILE/AWS_REGION select the account credentials and region for log retention.
+AWS_PROFILE ?= fas
+AWS_REGION ?= us-east-1
+
+.PHONY: install validate lint check test clean requirements build
 install:
 	uv sync --locked
 
@@ -19,18 +27,25 @@ sam-sync: install
 	sam sync --code --watch
 
 .PHONY: prod-vbd stage-vbd
-prod-vbd: template.yaml samconfig-prod.toml src/leaderboard_app/requirements.txt vend-e11 lint check
+build: requirements vend-e11
 	sam build --parallel --use-container --config-file samconfig-prod.toml -t template.yaml
-	sam deploy --config-file "$$(pwd)/samconfig-prod.toml"  --parameter-overrides DeploymentTimestamp="$$(date +'%Y-%m-%dT%H:%M:%S%z %Z')" --no-confirm-changeset -t .aws-sam/build/template.yaml
+
+prod-vbd: template.yaml samconfig-prod.toml
+	$(MAKE) -C .. email-check
+	$(MAKE) build
+	uv run --locked python ../e11/e11admin/sam_deploy.py --config samconfig-prod.toml --template .aws-sam/build/template.yaml
+	$(MAKE) -C .. lambda-log-retention LOG_STACK=leaderboard AWS_PROFILE=$(AWS_PROFILE) AWS_REGION=$(AWS_REGION)
 	curl --silent  https://leaderboard.csci-e-11.org/ | head -3
 
 prod-tail:
 	sam logs --stack-name leaderboard --name LeaderboardFlaskFunction --tail   --region us-east-1   --profile fas
 
 # This target generates the requirements.txt for SAM to use
-src/leaderboard_app/requirements.txt: uv.lock pyproject.toml
+requirements: src/requirements.txt
+
+src/requirements.txt: uv.lock pyproject.toml Makefile
 	@echo "--- Exporting requirements.txt from uv ---"
-	uv export --locked --no-dev --no-emit-project --no-hashes --format requirements.txt --output-file src/leaderboard_app/requirements.txt
+	uv export --locked --no-dev --no-emit-project --no-emit-package e11 --no-hashes --format requirements.txt --output-file $@ > /dev/null
 
 # Useful functions
 list-cloud-resources:
@@ -43,12 +58,10 @@ list-cloud-resources:
 # --- Custom Vendoring
 .PHONY: vend-e11
 vend-e11: install
-	@echo "Building src/leaderboard_app/e11.whl via uv"
+	@echo "Building the shared e11 wheel via uv"
 	( cd .. && uv build --wheel --out-dir dist )
-	@echo "Installing wheel into src/leaderboard_app/ as e11.whl"
-	install -d src/leaderboard_app
-	install -m 444 $$(ls -t ../dist/*.whl | head -1) src/leaderboard_app/e11.whl
-	@echo "OK -> src/leaderboard_app/e11.whl"
+	uv pip install --no-deps --reinstall --target src "$$(ls -t ../dist/e11-*.whl | head -1)"
+	/bin/rm -f src/leaderboard_app/e11.whl
 
 distclean:
 	/bin/rm -rf .venv

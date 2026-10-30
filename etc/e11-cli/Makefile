@@ -83,6 +83,26 @@ prod-all:
 	(cd lambda-home; make prod-vbd)
 	(cd lambda-leaderboard; make prod-vbd)
 
+# AWS_PROFILE/AWS_REGION select existing course credentials; LOG_STACK optionally
+# limits retention to one stack. The default includes all current/legacy E11 groups.
+AWS_PROFILE ?= fas
+AWS_REGION ?= us-east-1
+LOG_STACK ?=
+.PHONY: lambda-log-retention-plan lambda-log-retention lambda-log-retention-test lambda-build-check lambda-smoke-check
+lambda-log-retention-plan lambda-log-retention: .venv/pyvenv.cfg
+	@uv run --locked python -m e11.e11admin.lambda_logs --profile "$(AWS_PROFILE)" --region "$(AWS_REGION)" $(if $(LOG_STACK),--stack "$(LOG_STACK)") $(if $(filter lambda-log-retention,$@),--apply)
+
+lambda-log-retention-test: .venv/pyvenv.cfg
+	uv run --locked pytest -q tests/test_lambda_logs.py tests/test_sam_deploy.py
+
+lambda-build-check: .venv/pyvenv.cfg
+	$(MAKE) -C lambda-home build
+	$(MAKE) -C lambda-leaderboard build
+	$(MAKE) lambda-smoke-check
+
+lambda-smoke-check: .venv/pyvenv.cfg
+	uv run --locked python -m e11.e11admin.lambda_build_check
+
 
 doc/e11.1:  .venv/pyvenv.cfg
 	uv run --locked argparse-manpage --module e11.main --function get_parser \

@@ -10,6 +10,13 @@
 .aws_sam
 .venv
 **/e11.whl
+etc/e11-cli/lambda-home/src/e11/
+etc/e11-cli/lambda-home/src/bin/
+etc/e11-cli/lambda-home/src/.lock
+etc/e11-cli/lambda-leaderboard/src/e11/
+etc/e11-cli/lambda-leaderboard/src/bin/
+etc/e11-cli/lambda-leaderboard/src/.lock
+*.dist-info/
 __pycache__
 coverage.xml
 csci-e-11-config.toml
