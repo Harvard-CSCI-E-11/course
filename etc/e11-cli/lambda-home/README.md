@@ -37,3 +37,10 @@ Subjects open `/email/message?timestamp=...` in another tab. Both routes enforce
 the existing session and user ownership, serve private non-cacheable responses,
 and display escaped plain-text MIME content. See the parent CLI README for
 archive storage, welcome behavior, and `make email-check` service configuration.
+
+### Lab redirects
+
+`/lab0` through `/lab8` redirect to the corresponding
+`https://github.com/Harvard-CSCI-E-11/course/blob/main/doc/Lab_N.md` files.
+These GitHub destinations are temporary until the labs are hosted on GitHub Pages;
+the URLs are configured in the shared `e11.e11_common.LAB_CONFIG`.

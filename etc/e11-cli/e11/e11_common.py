@@ -65,39 +65,39 @@ LATE_GRADE_MAX_SCORE = round(POINTS_PER_LAB * LATE_GRADE_MAX_PERCENT / 100, 2)
 
 LAB_CONFIG = {
     "lab0": {
-        "redirect": "https://docs.google.com/document/d/1ywWJy6i2BK1qDZcWMWXXFibnDtOmeWFqX1MomPFYEN4/edit?usp=drive_link",
+        "redirect": "https://github.com/Harvard-CSCI-E-11/course/blob/main/doc/Lab_0.md",
         "deadline": "2027-02-01T12:00:00"
     },
     "lab1": {
-        "redirect": "https://docs.google.com/document/d/1okJLytuKSqsq0Dz5GUZHhEVj0UqQoWRTsxCac1gWiW4/edit?usp=drive_link",
+        "redirect": "https://github.com/Harvard-CSCI-E-11/course/blob/main/doc/Lab_1.md",
         "deadline": "2027-02-08T12:00:00"
     },
     "lab2": {
-        "redirect": "https://docs.google.com/document/d/1-3Wrh1coGqYvgfIbGvei8lw3XJQod85zzuvfdMStsvs/edit?usp=drive_link",
+        "redirect": "https://github.com/Harvard-CSCI-E-11/course/blob/main/doc/Lab_2.md",
         "deadline": "2027-02-15T12:00:00"
     },
     "lab3": {
-        "redirect": "https://docs.google.com/document/d/1pOeS03gJRGaUTezjs4-K6loY3SoVx4xRYk6Prj7WClU/edit?usp=drive_link",
+        "redirect": "https://github.com/Harvard-CSCI-E-11/course/blob/main/doc/Lab_3.md",
         "deadline": "2027-02-22T12:00:00"
     },
     "lab4": {
-        "redirect": "https://docs.google.com/document/d/1CW48xvpbEE9xPs_6_2cQjOQ4A7xvWgoWCEMgkPjNDuc/edit?usp=drive_link",
+        "redirect": "https://github.com/Harvard-CSCI-E-11/course/blob/main/doc/Lab_4.md",
         "deadline": "2027-03-08T12:00:00"
     },
     "lab5": {
-        "redirect": "https://docs.google.com/document/d/1mZOBtyqlpK4OGCXZ80rCWK0ryZ53hNBxL_m-urWzslg/edit?usp=drive_link",
+        "redirect": "https://github.com/Harvard-CSCI-E-11/course/blob/main/doc/Lab_5.md",
         "deadline": "2027-03-29T12:00:00"
     },
     "lab6": {
-        "redirect": "https://docs.google.com/document/d/1aRFFRaWmMrmgn3ONQDGhYghC-823GbGzAP-7qdt5E0U/edit?usp=drive_link",
+        "redirect": "https://github.com/Harvard-CSCI-E-11/course/blob/main/doc/Lab_6.md",
         "deadline": "2027-04-12T12:00:00"
     },
     "lab7": {
-        "redirect": "https://docs.google.com/document/d/14RdMZr3MYGiazjtEklW-cYWj27ek8YV2ERFOblZhIoM/edit?usp=drive_link",
+        "redirect": "https://github.com/Harvard-CSCI-E-11/course/blob/main/doc/Lab_7.md",
         "deadline": "2027-04-26T12:00:00"
     },
     "lab8": {
-        "redirect": "https://docs.google.com/document/d/1WEuKLVKmudsOgrpEqaDvIHE55kWKZDqAYbEvPWaA4gY/edit?usp=drive_link",
+        "redirect": "https://github.com/Harvard-CSCI-E-11/course/blob/main/doc/Lab_8.md",
         "deadline": "2027-05-10T12:00:00"
     }
 }

@@ -31,7 +31,7 @@ def test_all_lab_redirects_exist():
 
 
 def test_lab_redirects_return_valid_redirects():
-    """Test that all lab redirect routes return valid HTTP 302 redirects"""
+    """Exercise every lab route and require its public GitHub Markdown target."""
     for lab_num in range(9):
         path = f"/lab{lab_num}"
         event = create_lambda_event(path, method="GET")
@@ -43,8 +43,9 @@ def test_lab_redirects_return_valid_redirects():
         assert "Location" in response["headers"], (
             f"/lab{lab_num} response missing Location header"
         )
-        assert response["headers"]["Location"] == LAB_REDIRECTS[lab_num], (
-            f"/lab{lab_num} redirects to wrong URL: expected {LAB_REDIRECTS[lab_num]}, got {response['headers']['Location']}"
+        expected = f"https://github.com/Harvard-CSCI-E-11/course/blob/main/doc/Lab_{lab_num}.md"
+        assert response["headers"]["Location"] == expected, (
+            f"/lab{lab_num} redirects to wrong URL: expected {expected}, got {response['headers']['Location']}"
         )
 
 

@@ -1,5 +1,10 @@
 # Release notes
 
+## 2026-10-30: Lab document redirects
+
+- Point `/lab0` through `/lab8` to their `doc/Lab_N.md` files on GitHub main
+  until GitHub Pages hosting is available.
+
 ## 2026-10-29: Lambda deployment and Spring 2027 grading corrections
 
 - Export locked uv runtime requirements at each Lambda CodeUri root, including
