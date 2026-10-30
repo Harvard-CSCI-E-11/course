@@ -34,6 +34,14 @@ check-all:
 	$(MAKE) lint-all
 	$(MAKE) -C etc/e11-cli check-all
 
+# DNS settings are documented in etc/e11-cli/README.md; command-line variables
+# and exported environment variables are passed to the administration Makefile.
+dns-plan dns-delete dns-test dns-lint:
+	$(MAKE) -C etc/e11-cli $@
+
+dns-logging-enable dns-logging-status dns-logging-verify dns-logs dns-log-report dns-logging-test dns-logging-lint:
+	@$(MAKE) --silent --no-print-directory -C etc/e11-cli $@
+
 update-all:
 	for dir in $(PYPROJECT_DIRS) ; do (echo "=== $$dir ===" ; cd $$dir && uv lock --upgrade) ; done
 
@@ -48,8 +56,9 @@ install:
 	uv tool install --force ./etc/e11-cli
 
 clean-all:
-	for name in node_modules .venv __pycache__ .pytest_cache .aws-sam '*.egg-info' ; do find . -type d -name "$$name" -print0 | xargs -0 rm -rf ; done
+	for name in node_modules .venv __pycache__ .pytest_cache .aws-sam '*.egg-info' coverage.xml htmlcov; do find . -type d -name "$$name" -print0 | xargs -0 rm -rf ; done
 	/bin/rm -f $(GENERATED_REQUIREMENTS)
 
 distclean-all: clean-all
-.PHONY: lint-all check-all update-all sync-all lock-all install clean-all distclean-all
+.PHONY: lint-all check-all update-all sync-all lock-all install clean-all distclean-all dns-plan dns-delete dns-test dns-lint
+.PHONY: dns-logging-enable dns-logging-status dns-logging-verify dns-logs dns-log-report dns-logging-test dns-logging-lint

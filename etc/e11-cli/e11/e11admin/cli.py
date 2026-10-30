@@ -15,12 +15,18 @@ from tabulate import tabulate
 from e11.e11_common import A,make_course_key,get_user_from_email,get_user_from_user_id
 
 from . import staff
+from .archive_cli import add_archive_commands
 
 dynamodb_client = boto3.client('dynamodb')
 dynamodb = boto3.resource('dynamodb')
 users_table = dynamodb.Table('e11-users')
 
 HELP_TEXT = """e11admin - Quick reference
+
+Back up, inspect, or restore DynamoDB tables:
+  e11admin backup ./dynamodb-backup
+  e11admin view ./dynamodb-backup
+  e11admin restore ./dynamodb-backup --allow-restore
 
 List information about a student by email:
   e11admin student-report --email <email>
@@ -203,6 +209,8 @@ def main():
     parser = argparse.ArgumentParser(prog='e11admin', description='E11 admin program',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     subparsers = parser.add_subparsers(dest='command', required=True)
+    add_archive_commands(subparsers)
+
     class_parser = subparsers.add_parser('class', help='Commands for E11 class')
     class_parser.set_defaults(func=do_class)
     class_parser.add_argument("--dump", help='Dump all ', action='store_true')

@@ -47,6 +47,10 @@ $ git clone https://github.com/Harvard-CSCI-E-11/spring27.git "$HOME/course"
 $ "$HOME/course/etc/install-e11"
 ```
 
+See [Student internal documentation](student_internal_documentation.md) for
+how the course checkout, the installed `e11` command, and `e11 update` fit
+together.
+
 The student labs are identified:
 
 |Lab |Due |Description | E-11 Topics  |

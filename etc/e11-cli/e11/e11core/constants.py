@@ -2,7 +2,9 @@ import os
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-VERSION = "spring26"
+VERSION = "e11-course"
+COURSE_DIRECTORY = "course"
+LEGACY_COURSE_DIRECTORIES = ("spring26", "e11-course")
 COURSE_NAME = 'CSCI E-11'
 COURSE_DOMAIN = 'csci-e-11.org'
 COURSE_KEY_LEN = 6
@@ -11,13 +13,12 @@ LAB_MAX=8
 SUCCESS_KEY_TEMPLATE = "success/message-{lab}"
 LAB_TIMEZONE = ZoneInfo("America/New_York")  # Eastern timezone for lab deadlines
 CONFIG_FILENAME = "e11-config.ini"
-GITHUB_REPO_URL = f"https://github.com/Harvard-CSCI-E-11/{VERSION}"
+GITHUB_REPO_URL = "https://github.com/Harvard-CSCI-E-11/course"
 
-INSTANCE_COURSE_ROOT = Path("/home/ubuntu") / VERSION
-COURSE_ROOT = Path.home() / VERSION
-
-if not COURSE_ROOT.exists() and "COURSE_ROOT" in os.environ:
-    COURSE_ROOT = Path(os.environ["COURSE_ROOT"])
+INSTANCE_COURSE_ROOT = Path("/home/ubuntu") / COURSE_DIRECTORY
+COURSE_ROOT = Path(os.environ.get("COURSE_ROOT", str(next(
+    (Path.home() / name for name in (COURSE_DIRECTORY, *LEGACY_COURSE_DIRECTORIES)
+     if (Path.home() / name).is_dir()), Path.home() / COURSE_DIRECTORY))))
 
 
 # Defaults

@@ -284,7 +284,7 @@ def fake_aws(monkeypatch, dynamodb_local, fake_idp_server):
         def head_object(self, **kwargs):
             return {"ContentLength": 0}
 
-    def fake_send_email(to_addrs, email_subject, email_body):
+    def fake_send_email(to_addrs, email_subject, email_body, *, user_id):
         # Mock send_email2 function
         return {"MessageId": "fake-message-id"}
 

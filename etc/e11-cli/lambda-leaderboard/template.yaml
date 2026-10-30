@@ -111,6 +111,11 @@ Resources:
 
         - Version: '2012-10-17'
           Statement:
+            - Sid: ArchiveStudentEmail
+              Effect: Allow
+              Action: s3:PutObject
+              Resource: 'arn:aws:s3:::csci-e-11/email/*'
+
             - Sid: AllowSES
               Effect: Allow
               Action:

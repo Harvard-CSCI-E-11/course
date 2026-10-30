@@ -1,5 +1,67 @@
 # Release notes
 
+## 2026-10-29: Student email archive
+
+- Archive every outgoing student email in private S3 with a DynamoDB subject/time
+  index, add an authenticated email tab, and send an archived welcome on first
+  registration. Staff-created accounts receive their direct-login link.
+
+## 2026-10-28: PR readiness corrections
+
+- Default restores skip ephemeral session tables; direct CLI restores require
+  `--allow-restore`. Preflight checks destination primary/index key types and byte limits before
+  any writes. Version 2 archives retain local secondary index layouts so restore
+  can reject incompatible projections before writing; version 1 restores remain
+  supported for destinations without local indexes. Batches respect serialized
+  request limits, and local archive viewing
+  no longer initializes AWS clients.
+- Student checkout paths consistently use `~/course`, independent of the version
+  label, with a local `COURSE_ROOT` override. Supplied web service units and
+  remote answer-file lookup follow that layout; historical lookup remains available.
+- DNS summaries group canonical hostnames, CSV output protects formula-like cells,
+  and verification retries transient failures across authoritative servers.
+- Restored pre-commit failure propagation while preserving partial staging,
+  updated uv setup instructions, and resolved documentation conflict markers.
+
+## 2026-10-28: Public DNS query logging
+
+- Added one standalone script and Make targets to enable and verify public DNS
+  logging with CloudWatch Standard and 180-day retention, using existing AWS
+  credentials. Re-running setup reuses existing resources.
+- Added terminal/CSV/JSON views of individual DNS queries and hostname summaries,
+  including selection of a student's base and lab hostnames. S3 export is deferred.
+- Fixed public-key test fixtures that still used `spring26` instead of the current
+  course directory, and isolated the configured root to avoid host-dependent results.
+
+## 2026-10-28: Export-based DNS cleanup
+
+- `make dns-plan` now selects every name in the saved Route 53 export that is
+  not matched by `dns-keep.txt`, including shell globs, and saves exact deletions.
+- `make dns-delete` applies that saved plan without a copied hash, checking the
+  keep-list, AWS account, hosted zone, and live records before writing.
+- Both targets work from the Git root. The default keep-list is included in
+  version control and preserves stage while allowing simsong to be deleted.
+
+## 2026-09-27: End-of-course cleanup commands
+
+- Added Makefile entry points for DynamoDB backup, view, and guarded restore.
+- Replaced broad Route 53 keep-list deletion with an explicit student-name plan,
+  complete record-set preservation, bounded batches, an approved plan hash,
+  live account/zone/record checks, and `INSYNC` waits.
+- Added offline DNS plan and guard tests plus an end-of-course operator procedure.
+
+## 2026-09-06: DynamoDB backup and restore
+
+- Added `e11admin backup`, `restore`, and `view` commands. Backups use a
+  checksummed, versioned manifest and one lossless compressed `.ddb` file per
+  table.
+- Restore validates every selected file, record, primary key, record count,
+  and target key schema before writing. Records are idempotently upserted, and
+  unrelated target records are retained.
+- Added DynamoDB Local integration coverage for binary values, exact numbers,
+  sets, nested values, repeat restores, corrupt archives, schema mismatch, and
+  the no-partial-write preflight guarantee.
+
 ## 2026-08-23: uv and Python 3.14 migration
 
 ### Project and dependency management
@@ -136,11 +198,10 @@
 ### Stable student checkout documentation
 
 - Updated student-facing documentation for Spring 2027 and instructed students
-  to clone the annual `spring27` repository into the stable `$HOME/course`
-  checkout directory.
+  to clone the `e11-course` repository into the `$HOME/course` checkout directory.
 - Updated Lab commands, shell prompts, and supporting documentation to use
   `$HOME/course`, `~/course`, or `/home/ubuntu/course` as appropriate.
-- Updated annual repository URLs to `spring27`, repaired the root CI badge and
+- Updated annual repository URLs to `e11-course`, repaired the root CI badge and
   clone URL, and corrected stale leaderboard, Lab 3, and MEMENTO source links.
 - Replaced stale Amazon Linux `/home/ec2-user` examples with Ubuntu's
   `/home/ubuntu` path and corrected the imported Lab 1 Poetry description to

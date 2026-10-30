@@ -236,15 +236,26 @@ Resources:
                 - ses:SendRawEmail
               Resource: "*"
 
+            - Sid: ArchiveStudentEmail
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource: 'arn:aws:s3:::csci-e-11/email/*'
+
             - Sid: AccessExistingBucket
               Effect: Allow
               Action:
                 - s3:GetObject
                 - s3:PutObject
-                - s3:DeleteObject
               Resource:
                 - !Sub 'arn:aws:s3:::${ImageBucketName}'      # The Bucket itself
                 - !Sub 'arn:aws:s3:::${ImageBucketName}/*'    # The Objects inside
+
+            - Sid: DeleteStudentImages
+              Effect: Allow
+              Action: s3:DeleteObject
+              Resource: !Sub 'arn:aws:s3:::${ImageBucketName}/images/*'
 
             - Sid: HomeQueueRW
               Effect: Allow

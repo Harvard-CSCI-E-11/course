@@ -71,9 +71,9 @@ only as completion history and are not active TODOs.
    - `lambda-home/src/home_app/sessions.py::expire_batch` raises `TypeError` if `session_expire` is present but `None`.
    - There is already a test comment documenting this as a known production bug.
 
-10. `medium` Remove debug API responses that expose process environment.
-   - `lambda-home/src/home_app/api.py` returns `dict(os.environ)` from `ping` and `ping-mail`.
-   - Even if secrets are usually not present, this is broader diagnostic exposure than a public-ish status API should provide.
+10. `done` Remove debug API responses that expose process environment.
+   - `ping` and `ping-mail` return explicit harmless status fields, with no environment,
+     interpreter path, or Lambda context dumps. Archive tests verify this boundary.
 
 11. `done` Normalize project tooling.
    - All projects now use standard project metadata, uv lockfiles, and uv-backed

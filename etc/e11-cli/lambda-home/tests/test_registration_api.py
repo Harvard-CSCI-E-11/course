@@ -90,7 +90,7 @@ def test_registration_api_flow(monkeypatch, fake_aws, dynamodb_local):
     monkeypatch.setattr(api_module, "route53_client", trackable_route53)
 
     # Mock send_email2 function to track calls
-    def trackable_send_email(to_addrs, email_subject, email_body):
+    def trackable_send_email(to_addrs, email_subject, email_body, *, user_id):
         from e11.e11_common import SES_VERIFIED_EMAIL
 
         mock_aws.ses_emails.append(
@@ -280,7 +280,7 @@ def test_registration_api_returning_user_flow(monkeypatch, fake_aws, dynamodb_lo
             }
 
     # Mock send_email2 function to track calls
-    def trackable_send_email(to_addrs, email_subject, email_body):
+    def trackable_send_email(to_addrs, email_subject, email_body, *, user_id):
         from e11.e11_common import SES_VERIFIED_EMAIL
 
         mock_aws.ses_emails.append(

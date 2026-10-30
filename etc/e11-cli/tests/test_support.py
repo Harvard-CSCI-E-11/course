@@ -1,3 +1,8 @@
+# Verify configuration and public-key lookup using real temporary files.
+# Each test has an isolated home and an isolated configured course directory.
+# Versioned checkout fixtures follow the application's current directory name.
+# Key tests cover lookup precedence, missing files, format, and authorized keys.
+# No private key or live SSH connection is needed to validate this behavior.
 """Tests for e11.support module."""
 import configparser
 from pathlib import Path
@@ -5,6 +10,14 @@ from pathlib import Path
 import pytest
 
 from e11 import support
+
+
+@pytest.fixture(autouse=True)
+def course_root(tmp_path, monkeypatch):
+    """Isolate support's imported root as well as the constant patched globally."""
+    path = tmp_path / "configured-course"
+    monkeypatch.setattr(support, "COURSE_ROOT", path)
+    return path
 
 
 @pytest.fixture
@@ -34,7 +47,7 @@ def config_file(temp_home):
 @pytest.fixture
 def repo_dir(temp_home):
     """Create a repo directory structure."""
-    repo = temp_home / "spring26" / "etc"
+    repo = temp_home / support.COURSE_DIRECTORY / "etc"
     repo.mkdir(parents=True)
     return repo
 
@@ -95,8 +108,8 @@ class TestAuthorizedKeysPath:
 class TestBotPubkeyPath:
     """Test cases for bot_pubkey_path() function."""
 
-    def test_bot_pubkey_path_finds_in_spring26(self, repo_dir, bot_key_file):
-        """Test bot_pubkey_path finds key in spring26/etc directory."""
+    def test_bot_pubkey_path_finds_in_course(self, repo_dir, bot_key_file):
+        """Test bot_pubkey_path finds the key in the current course directory."""
         result = support.bot_pubkey_path()
         assert result == bot_key_file
         assert result.exists()
@@ -113,8 +126,8 @@ class TestBotPubkeyPath:
         assert result == key_file
         assert result.exists()
 
-    def test_bot_pubkey_path_prioritizes_spring26_over_gits(self, repo_dir, temp_home, bot_key_file):
-        """Test bot_pubkey_path prefers spring26 location over gits."""
+    def test_bot_pubkey_path_prioritizes_course_over_gits(self, repo_dir, temp_home, bot_key_file):
+        """Test bot_pubkey_path prefers the current course directory over gits."""
         # Create key in both locations
         gits_path = temp_home / "gits" / "csci-e-11" / "etc"
         gits_path.mkdir(parents=True)
@@ -122,8 +135,23 @@ class TestBotPubkeyPath:
         gits_key.write_text("ssh-ed25519 gits-key\n")
 
         result = support.bot_pubkey_path()
-        # Should prefer spring26 location
+        # Should prefer the current course directory.
         assert result == bot_key_file
+
+    def test_bot_pubkey_path_prioritizes_configured_root(self, course_root, bot_key_file):
+        """An explicit course root takes precedence over a home-based checkout."""
+        key = course_root / "etc" / support.CSCIE_BOT_KEYFILE
+        key.parent.mkdir(parents=True)
+        key.write_text("ssh-ed25519 configured-root-key\n")
+        assert support.bot_pubkey_path() == key
+
+    @pytest.mark.parametrize("directory", support.LEGACY_COURSE_DIRECTORIES)
+    def test_bot_pubkey_path_preserves_legacy_versioned_checkout(self, temp_home, directory):
+        """Old checkout names remain usable without defining the default layout."""
+        key = temp_home / directory / "etc" / support.CSCIE_BOT_KEYFILE
+        key.parent.mkdir(parents=True)
+        key.write_text("ssh-ed25519 legacy-key\n")
+        assert support.bot_pubkey_path() == key
 
     def test_bot_pubkey_path_raises_when_not_found(self, temp_home):
         """Test bot_pubkey_path raises FileNotFoundError when key doesn't exist."""

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import requests
 
-from .e11core.constants import VERSION, CONFIG_FILENAME, COURSE_ROOT
+from .e11core.constants import VERSION, CONFIG_FILENAME, COURSE_ROOT, COURSE_DIRECTORY, LEGACY_COURSE_DIRECTORIES
 from .e11_common import CSCIE_BOT_KEYFILE
 
 # Use constants from e11core.constants and e11_common
@@ -37,7 +37,8 @@ def bot_pubkey_path():
     course_root_key = COURSE_ROOT / "etc" / CSCIE_BOT_KEYFILE
     if course_root_key.exists():
         return course_root_key
-    for path in [ home() / REPO_YEAR / "etc" / CSCIE_BOT_KEYFILE,
+    for path in [ home() / COURSE_DIRECTORY / "etc" / CSCIE_BOT_KEYFILE,
+                  *(home() / name / "etc" / CSCIE_BOT_KEYFILE for name in LEGACY_COURSE_DIRECTORIES),
                   home() / "gits" / "csci-e-11" / "etc" / CSCIE_BOT_KEYFILE]:
         if path.exists():
             return path

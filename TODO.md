@@ -4,6 +4,14 @@ Reviewed against the repository on 2026-08-23. Completed and superseded ideas
 from the former scratch list were removed; the items below still need a decision
 or implementation.
 
+## Spring 2027 preparation deadlines
+
+- [ ] Finish Labs 1–6 by **November 10, 2026**.
+- [ ] Simson will upgrade Labs 7–8 by **December 1, 2026**. Their imported
+  MEMENTO/CircuitPython guides remain legacy material until that work is complete;
+  the Raspberry Pi upgrade is deferred from the current cleanup PR and is not
+  assigned to Codex.
+
 ## Course operations
 
 - Add a staff progress report that summarizes registration and started/completed
