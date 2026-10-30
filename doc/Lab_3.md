@@ -14,9 +14,9 @@
 
 [Expanding your certificate](#expanding-your-certificate)
 
-[Poetry: A modern Python package manager](#poetry:-a-modern-python-package-manager)
+[uv: A modern Python package manager](#uv:-a-modern-python-package-manager)
 
-[Making Poetry work with lab 3](#making-poetry-work-with-lab-3)
+[Making uv work with lab 3](#making-uv-work-with-lab-3)
 
 [Running a simple Flask application from the command line](#running-a-simple-flask-application-from-the-command-line)
 
@@ -58,7 +58,7 @@ Objectives for this lab:
 
 * Add a second website to your web server.
 * Certificate \- Expand your Let’s Encrypt certificate to include a second website.
-* Poetry \- Install the Poetry python environment
+* uv \- Set up the Python environment
 * Flask \- Install Flask to allow for applications to run on your web server.
 * Add a Reverse Proxy to allow your one server to host multiple websites
 * Deploy a simple application that performs a simple database lookup. **NOTE:** The code we give you contains an SQL injection vulnerability\! (You have to fix it.)
@@ -96,9 +96,9 @@ Lab 3 builds upon Lab 2, but you will find new files in the [lab3 folder of the 
 
 This assignment assumes some familiarity with HTTP, TLS, SQL and Python. We are providing you with these resources that you might want to read first:
 
-Python Poetry and Flask:
+Python uv and Flask:
 
-* [Introduction | Documentation | Poetry \- Python dependency management and packaging made easy](https://python-poetry.org/docs/)
+* [Introduction | Documentation | uv \- Python dependency management and packaging made easy](https://docs.astral.sh/uv/)
 * [Flask](https://flask.palletsprojects.com/en/stable/)
 
 Using nginx and gunicorn to serve a python application over HTTP:
@@ -334,18 +334,16 @@ Restart your web browser and go to the website. You should see the same web page
 
 #
 
-# **Poetry: A modern Python package manager** {#poetry:-a-modern-python-package-manager}
+# **uv: A modern Python package manager** {#uv:-a-modern-python-package-manager}
 
-In this class we will be using the Poetry package manager to manage a different Python virtual environment for each lab. Poetry combines aspects of the [venv](https://docs.python.org/3/library/venv.html) module and [pip](https://pypi.org/project/pip/) installer, but is significantly faster and more powerful than both.
+We use [uv](https://docs.astral.sh/uv/) to install each lab’s locked Python dependencies in a virtual environment named `.venv` inside that lab directory. The course installer installs uv. The leading dot hides `.venv` from a normal `ls`; use `ls -la` to see it.
 
-The e11 installer install-e11 installed poetry and configured it so that python virtual environments would be stored in a directory called .venv within each project directory. The leading “.” makes the directory invisible when you type ls \-l; to see it you need to type ls \-la (the ‘a’ is for “all”).
+## **Making uv work with lab 3** {#making-uv-work-with-lab-3}
 
-## **Making Poetry work with lab 3** {#making-poetry-work-with-lab-3}
-
-The Poetry projects for this class are all set up, but you do need to activate the environments. To get started with lab 3, type these commands. (At the end of the second and third lines are comments, introduced by the comment character \#. These are present for your benefit; you do not need to type them.)
+The uv projects for this class are all set up, but you do need to activate the environments. To get started with lab 3, type these commands. (At the end of the second and third lines are comments, introduced by the comment character \#. These are present for your benefit; you do not need to type them.)
 
 $ **cd \~/course/lab3**
-$ **poetry install**		   \# install the dependencies
+$ **uv sync --locked**		   \# install the dependencies
 $ **source .venv/bin/activate** \# activate the virtual environment, setting PATH and prompt
 
 # **Running a simple Flask application from the command line** {#running-a-simple-flask-application-from-the-command-line}
@@ -686,9 +684,9 @@ Make sure you are in the correct directory by executing:
 
 $ **cd \~/course/lab3**
 
-Then, activate the poetry environment:
+Then, activate the uv environment:
 
-	**$(poetry env activate)**
+	**source .venv/bin/activate**
 
 ## **Creating the student database** {#creating-the-student-database}
 

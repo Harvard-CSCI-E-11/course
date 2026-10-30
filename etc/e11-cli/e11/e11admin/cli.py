@@ -15,13 +15,7 @@ from tabulate import tabulate
 from e11.e11_common import A,make_course_key,get_user_from_email,get_user_from_user_id
 
 from . import staff
-from .dynamodb_backup import (
-    BackupError,
-    backup_directory,
-    require_directory,
-    restore_directory,
-    view_directory,
-)
+from .archive_cli import add_archive_commands
 
 dynamodb_client = boto3.client('dynamodb')
 dynamodb = boto3.resource('dynamodb')
@@ -32,7 +26,7 @@ HELP_TEXT = """e11admin - Quick reference
 Back up, inspect, or restore DynamoDB tables:
   e11admin backup ./dynamodb-backup
   e11admin view ./dynamodb-backup
-  e11admin restore ./dynamodb-backup
+  e11admin restore ./dynamodb-backup --allow-restore
 
 List information about a student by email:
   e11admin student-report --email <email>
@@ -210,62 +204,12 @@ def do_class(args):
 def do_help(_args):
     print(HELP_TEXT)
 
-def do_backup(args):
-    try:
-        manifest = backup_directory(dynamodb_client, args.directory, args.table)
-    except BackupError as error:
-        raise SystemExit(f"backup failed: {error}") from error
-    for table in manifest.tables:
-        print(f"{table.table_name}: {table.item_count} records -> {table.filename}")
-    print(f"Backup complete: {args.directory}")
-
-def do_restore(args):
-    try:
-        restored = restore_directory(
-            dynamodb_client, require_directory(str(args.directory)), args.table
-        )
-    except BackupError as error:
-        raise SystemExit(f"restore failed: {error}") from error
-    for table_name, item_count in restored:
-        print(f"{table_name}: restored {item_count} records")
-
-def do_view(args):
-    try:
-        view_directory(require_directory(str(args.directory)), sys.stdout, args.table)
-    except BackupError as error:
-        raise SystemExit(f"view failed: {error}") from error
-
 # pylint: disable=too-many-statements
 def main():
     parser = argparse.ArgumentParser(prog='e11admin', description='E11 admin program',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     subparsers = parser.add_subparsers(dest='command', required=True)
-    backup_parser = subparsers.add_parser(
-        'backup', help='Back up DynamoDB tables to a new local directory'
-    )
-    backup_parser.add_argument('directory', type=Path, help='New backup directory')
-    backup_parser.add_argument(
-        '--table', action='append', help='Table to include (repeatable; default: all)'
-    )
-    backup_parser.set_defaults(func=do_backup)
-
-    restore_parser = subparsers.add_parser(
-        'restore', help='Restore DynamoDB records as idempotent upserts'
-    )
-    restore_parser.add_argument('directory', type=Path, help='Backup directory')
-    restore_parser.add_argument(
-        '--table', action='append', help='Table to restore (repeatable; default: all)'
-    )
-    restore_parser.set_defaults(func=do_restore)
-
-    view_parser = subparsers.add_parser(
-        'view', help='Write backup records as human-readable JSON Lines'
-    )
-    view_parser.add_argument('directory', type=Path, help='Backup directory')
-    view_parser.add_argument(
-        '--table', action='append', help='Table to view (repeatable; default: all)'
-    )
-    view_parser.set_defaults(func=do_view)
+    add_archive_commands(subparsers)
 
     class_parser = subparsers.add_parser('class', help='Commands for E11 class')
     class_parser.set_defaults(func=do_class)

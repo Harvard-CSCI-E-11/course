@@ -1,0 +1,14 @@
+# One DNS name or shell glob per line; blank lines and # comments are ignored.
+# Matching ignores case and trailing dots. Globs (*, ?, [abc]) can span dots.
+# Keep every record type at the apex and at infrastructure names below.
+# Underscore patterns preserve certificate validation, SES, DMARC, and DKIM.
+csci-e-11.org.
+_*.csci-e-11.org.
+*._*.csci-e-11.org.
+grader.csci-e-11.org
+*.grader.csci-e-11.org
+leaderboard.csci-e-11.org
+*.leaderboard.csci-e-11.org
+stage.csci-e-11.org
+*.stage.csci-e-11.org
+autodiscover.csci-e-11.org

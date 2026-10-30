@@ -14,6 +14,7 @@ from e11.e11_common import (
     convert_dynamodb_item,
     create_new_user,
     get_user_from_email,
+    send_welcome_email,
     sessions_table,
 )
 from e11.e11core.utils import get_logger
@@ -60,6 +61,7 @@ def new_session(event, claims) -> Session:
             event, user.user_id, f"User {claims['email']} created", claims=claims
         )
 
+    send_welcome_email(user)
     sid = str(uuid.uuid4())
     session = {
         "sid": sid,

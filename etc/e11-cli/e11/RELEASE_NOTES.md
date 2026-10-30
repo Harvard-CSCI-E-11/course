@@ -1,5 +1,47 @@
 # Release notes
 
+## 2026-10-29: Student email archive
+
+- Archive every outgoing student email in private S3 with a DynamoDB subject/time
+  index, add an authenticated email tab, and send an archived welcome on first
+  registration. Staff-created accounts receive their direct-login link.
+
+## 2026-10-28: PR readiness corrections
+
+- Default restores skip ephemeral session tables; direct CLI restores require
+  `--allow-restore`. Preflight checks destination primary/index key types and byte limits before
+  any writes. Version 2 archives retain local secondary index layouts so restore
+  can reject incompatible projections before writing; version 1 restores remain
+  supported for destinations without local indexes. Batches respect serialized
+  request limits, and local archive viewing
+  no longer initializes AWS clients.
+- Student checkout paths consistently use `~/course`, independent of the version
+  label, with a local `COURSE_ROOT` override. Supplied web service units and
+  remote answer-file lookup follow that layout; historical lookup remains available.
+- DNS summaries group canonical hostnames, CSV output protects formula-like cells,
+  and verification retries transient failures across authoritative servers.
+- Restored pre-commit failure propagation while preserving partial staging,
+  updated uv setup instructions, and resolved documentation conflict markers.
+
+## 2026-10-28: Public DNS query logging
+
+- Added one standalone script and Make targets to enable and verify public DNS
+  logging with CloudWatch Standard and 180-day retention, using existing AWS
+  credentials. Re-running setup reuses existing resources.
+- Added terminal/CSV/JSON views of individual DNS queries and hostname summaries,
+  including selection of a student's base and lab hostnames. S3 export is deferred.
+- Fixed public-key test fixtures that still used `spring26` instead of the current
+  course directory, and isolated the configured root to avoid host-dependent results.
+
+## 2026-10-28: Export-based DNS cleanup
+
+- `make dns-plan` now selects every name in the saved Route 53 export that is
+  not matched by `dns-keep.txt`, including shell globs, and saves exact deletions.
+- `make dns-delete` applies that saved plan without a copied hash, checking the
+  keep-list, AWS account, hosted zone, and live records before writing.
+- Both targets work from the Git root. The default keep-list is included in
+  version control and preserves stage while allowing simsong to be deleted.
+
 ## 2026-09-27: End-of-course cleanup commands
 
 - Added Makefile entry points for DynamoDB backup, view, and guarded restore.

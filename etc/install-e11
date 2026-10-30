@@ -82,7 +82,7 @@ sudo systemctl enable e11-register.service
 $SCRIPT_DIR/.install1
 
 # Lab3 setup
-(cd $HOME/spring26/lab3 && /bin/rm -f server.py && cp -p simple_flask_application.py server.py)
+(cd "$SCRIPT_DIR/../lab3" && /bin/rm -f server.py && cp -p simple_flask_application.py server.py)
 
 # Make linux a bit friendlier
 cat >>"$HOME/.bashrc" <<'EOF'

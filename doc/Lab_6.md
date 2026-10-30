@@ -77,7 +77,7 @@ Lab 6 builds upon Lab 5\. In particular, most of the files in the [lab6 folder o
 
 Before we get started modifying code. Ensure that you set up the Python environment.
 
-	`$ poetry install`
+	`$ uv sync --locked`
 
 We will also make a small change to `lab6/server/image_validate.py` (which is actually a link to the file in lab5).
 

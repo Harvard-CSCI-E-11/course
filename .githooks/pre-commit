@@ -1,9 +1,15 @@
 #!/bin/sh
-# set -e
+# Normalize staged files before the commit is created.
+# Paths are read one per line so names containing spaces stay intact.
+# The helper normalizes fully staged files and Git stages that result.
+# A failed helper or staging operation must fail the hook and stop the commit.
+# Partially staged files are skipped to preserve the user’s selected changes.
+set -e
 
 # Process staged paths one at a time so spaces remain part of the filename.
 git diff --cached --name-only --diff-filter=ACMR | while IFS= read -r file; do
     [ -z "$file" ] && continue
+    git diff --quiet -- "$file" || continue
     etc/fix_trailing_whitespace.py --quiet "$file"
     git add -- "$file"
 done

@@ -9,7 +9,6 @@ authenticate with api_authenticate(payload), which returns the user directory.
 import ipaddress
 import json
 import os
-import sys
 import time
 import uuid
 from datetime import datetime
@@ -50,18 +49,21 @@ from e11.e11core.constants import (
     HTTP_BAD_REQUEST,
     HTTP_FORBIDDEN,
     HTTP_INTERNAL_ERROR,
+    HTTP_NOT_FOUND,
     HTTP_OK,
     JPEG_MIME_TYPE,
     JSON_CONTENT_TYPE,
 )
 from e11.e11core.e11ssh import E11Ssh
 from e11.e11core.utils import get_logger, smash_email
+from e11.email_archive import MESSAGE_ID, SES_MESSAGE_ID
 from e11.main import __version__
 from mypy_boto3_route53.type_defs import ChangeBatchTypeDef, ChangeTypeDef
 
 from .sessions import (
     delete_session,
     expire_batch,
+    get_session_from_event,
 )
 
 LOGGER = get_logger("home")
@@ -299,6 +301,7 @@ def api_register(event, payload):
             else "CSCI E-11 Update"
         )
         send_email2(
+            user_id=user.user_id,
             to_addrs=[email],
             email_subject=subject,
             email_body=EMAIL_BODY.format(
@@ -423,6 +426,7 @@ def api_grader(event, context, payload):
 
     if user.public_ip is None:
         send_email2(
+            user_id=user.user_id,
             to_addrs=user.emails(),
             email_subject="Instance not registered",
             email_body="Attempt to grade aborted, as your instance is not registered.",
@@ -463,7 +467,7 @@ def api_grader(event, context, payload):
                 "date": _format_grade_event_timestamp(str(previous_best_record[A.SK])),
             }
     (subject, body) = grader.create_email(summary, note, previous_best=previous_best)
-    send_email2(to_addrs=user.emails(), email_subject=subject, email_body=body)
+    send_email2(user_id=user.user_id, to_addrs=user.emails(), email_subject=subject, email_body=body)
     return resp_json(HTTP_OK, {"summary": summary})
 
 
@@ -559,22 +563,25 @@ def api_upload_callback(bucket, key):
     add_image(user.user_id, "lab8", bucket, key)
 
 
-def api_delete_image(payload):
-    """Delete the specified session. If the user knows the sid, that's good enough (we don't require that the sid be sealed)."""
+def api_delete_image(event, payload):
+    """Delete only an authenticated student's indexed image, using its stored location."""
+    session = get_session_from_event(event)
+    if session is None:
+        return resp_json(HTTP_FORBIDDEN, {"error": "Authentication required"})
+    user = get_user_from_email(session.email)
+    sk = payload.get(A.SK)
+    if not isinstance(sk, str) or not sk.startswith(A.SK_IMAGE_PREFIX):
+        return resp_json(HTTP_BAD_REQUEST, {"error": "An image record is required"})
+    image = users_table.get_item(
+        Key={A.USER_ID: user.user_id, A.SK: sk}, ConsistentRead=True
+    ).get("Item")
+    if image is None:
+        return resp_json(HTTP_NOT_FOUND, {"error": "Image not found"})
     try:
-        return resp_json(
-            HTTP_OK,
-            {
-                "result": delete_image(
-                    payload.get("user_id"),
-                    payload.get("sk"),
-                    payload.get("bucket"),
-                    payload.get("key"),
-                )
-            },
-        )
-    except (ValueError, TypeError, KeyError) as e:
-        return resp_json(HTTP_BAD_REQUEST, {"error": str(e)})
+        delete_image(user.user_id, sk, image[A.BUCKET], image[A.KEY])
+        return resp_json(HTTP_OK, {"result": True})
+    except (ValueError, TypeError, KeyError) as exc:
+        return resp_json(HTTP_BAD_REQUEST, {"error": str(exc)})
 
 
 # pylint: disable=too-many-positional-arguments,too-many-return-statements,too-many-branches
@@ -597,21 +604,16 @@ def dispatch(method, action, event, context, payload):
                 {
                     "error": False,
                     "message": "ok",
-                    "path": sys.path,
-                    "context": dict(context),
-                    "environ": dict(os.environ),
                 },
             )
 
         case ("POST", "ping-mail"):
-            hostnames = ["first"]
-            public_ip = "<address>"
+            user = validate_payload(payload)
             resp = send_email2(
-                to_addrs=[payload[A.EMAIL]],
+                user_id=user.user_id,
+                to_addrs=user.emails(),
                 email_subject="E11 email ping",
-                email_body=EMAIL_BODY.format(
-                    hostname=hostnames[0], public_ip=public_ip
-                ),
+                email_body="Your CSCI E-11 email connection is working.",
             )
 
             return resp_json(
@@ -619,9 +621,7 @@ def dispatch(method, action, event, context, payload):
                 {
                     "error": False,
                     "message": "ok",
-                    "path": sys.path,
-                    "resp": resp,
-                    "environ": dict(os.environ),
+                    MESSAGE_ID: resp.get(SES_MESSAGE_ID),
                 },
             )
 
@@ -638,7 +638,7 @@ def dispatch(method, action, event, context, payload):
             return api_delete_session(payload)
 
         case ("POST", "delete-image"):
-            return api_delete_image(payload)
+            return api_delete_image(event, payload)
 
         case ("POST", "check-access"):
             return api_check_access(event, payload, check_me=False)
