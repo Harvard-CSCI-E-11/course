@@ -13,13 +13,12 @@ We use DynamoDB Local for testing, NOT monkeypatching for DynamoDB operations.
 
 import json
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock, patch
-from zoneinfo import ZoneInfo
+from unittest.mock import patch
 
 import pytest
-from e11.e11_common import LAB_CONFIG, LAB_REDIRECTS
-from e11.e11core.constants import HTTP_FORBIDDEN, HTTP_OK
 
+from e11.e11_common import LAB_CONFIG, LAB_REDIRECTS
+from e11.e11core.constants import HTTP_OK
 from home_app import api, home
 
 
@@ -76,223 +75,41 @@ def test_lab_redirects_still_work():
     assert response["headers"]["Location"] == LAB_CONFIG["lab0"]["redirect"]
 
 
-@pytest.mark.parametrize("lab_key", ["lab0", "lab1", "lab2"])
-def test_api_grader_before_deadline(lab_key, monkeypatch, fake_aws):
-    """Test that api_grader accepts requests before deadline."""
-    import time
+@pytest.mark.parametrize("source", ["api", "sqs"])
+@pytest.mark.parametrize("seconds,score", [(-1, 5), (0, 5), (1, 4.45)])
+def test_api_grader_accepts_requests_and_caps_late_results(source, seconds, score, monkeypatch, dynamodb_local):
+    """Both delivery paths persist, return and email the same awarded grade."""
     import uuid
 
-    from e11.e11_common import A, create_new_user, users_table
-    from e11.e11core.utils import smash_email
+    from e11 import e11_common as common
 
-    # Create test user with unique email
+    email = f"grade-{uuid.uuid4().hex}@example.com"
+    user = common.User(user_id=str(uuid.uuid4()), sk="#", email=email,
+                       course_key="test-key", public_ip="203.0.113.1")
+    common.users_table.put_item(Item=user.model_dump(exclude_none=True))
+    deadline = datetime.fromisoformat(LAB_CONFIG["lab0"]["deadline"]).replace(tzinfo=common.LAB_TIMEZONE)
+    received = deadline + timedelta(seconds=seconds)
 
-    test_email = f"test-{lab_key}-{uuid.uuid4().hex[:8]}@example.com"
-    user = create_new_user(
-        test_email,
-        {
-            "email": test_email,
-            "preferred_name": "Test User",
-        },
-    )
-    # Register the instance by setting public_ip on the user record
-    users_table.update_item(
-        Key={"user_id": user[A.USER_ID], "sk": user[A.SK]},
-        UpdateExpression=f"SET {A.PUBLIC_IP} = :ip, {A.HOSTNAME} = :hn, {A.HOST_REGISTERED} = :t",
-        ExpressionAttributeValues={
-            ":ip": "1.2.3.4",
-            ":hn": smash_email(test_email),
-            ":t": int(time.time()),
-        },
-    )
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return received + timedelta(minutes=5)
 
-    # Mock the grader to avoid actual SSH calls
-    mock_summary = {
-        "lab": lab_key,
-        "passes": ["test1"],
-        "fails": [],
-        "tests": [{"name": "test1", "passed": True, "message": "OK"}],
-        "score": 100.0,
-        "error": False,
-        "ctx": {"email": test_email, "public_ip": "1.2.3.4", "lab": lab_key},
-    }
-
-    # Mock secrets manager for SSH key (needs to be JSON with 'cscie-bot' key)
-    mock_secrets = MagicMock()
-    mock_secrets.get_secret_value.return_value = {
-        "SecretString": json.dumps({"cscie-bot": "fake-ssh-key"})
-    }
-    monkeypatch.setattr("home_app.api.secretsmanager_client", mock_secrets)
-
-    with (
-        patch("home_app.api.grader.grade_student_vm", return_value=mock_summary),
-        patch("home_app.api.send_email2"),
-    ):
-        # Set current time to before deadline
-        # Deadline is in Eastern time (no timezone in string)
-        from zoneinfo import ZoneInfo
-
-        eastern_tz = ZoneInfo("America/New_York")
-        deadline_str = LAB_CONFIG[lab_key]["deadline"]
-        deadline = datetime.fromisoformat(deadline_str).replace(tzinfo=eastern_tz)
-        before_deadline = deadline - timedelta(days=1)
-
-        with patch("home_app.api.datetime") as mock_dt:
-            mock_dt.fromisoformat = datetime.fromisoformat
-            mock_dt.now.return_value = before_deadline
-            # Patch LAB_TIMEZONE to use our test timezone
-            with patch("home_app.api.LAB_TIMEZONE", eastern_tz):
-                event = {
-                    "requestContext": {
-                        "http": {"method": "POST", "sourceIp": "1.2.3.4"}
-                    },
-                    "source": "api",  # Not from SQS
-                }
-                payload = {
-                    "auth": {"email": test_email, "course_key": user[A.COURSE_KEY]},
-                    "lab": lab_key,
-                }
-
-                response = api.api_grader(event, None, payload)
-                assert response["statusCode"] == HTTP_OK
-
-
-@pytest.mark.parametrize("lab_key", ["lab0", "lab1", "lab2"])
-def test_api_grader_after_deadline_rejects(lab_key, monkeypatch, fake_aws):
-    """Test that api_grader rejects requests after deadline (non-SQS)."""
-    import time
-    import uuid
-
-    from e11.e11_common import A, create_new_user, users_table
-    from e11.e11core.utils import smash_email
-
-    # Create test user with unique email
-
-    test_email = f"test-{lab_key}-{uuid.uuid4().hex[:8]}@example.com"
-    user = create_new_user(
-        test_email,
-        {
-            "email": test_email,
-            "preferred_name": "Test User",
-        },
-    )
-    # Register the instance by setting public_ip on the user record
-    users_table.update_item(
-        Key={"user_id": user[A.USER_ID], "sk": user[A.SK]},
-        UpdateExpression=f"SET {A.PUBLIC_IP} = :ip, {A.HOSTNAME} = :hn, {A.HOST_REGISTERED} = :t",
-        ExpressionAttributeValues={
-            ":ip": "1.2.3.4",
-            ":hn": smash_email(test_email),
-            ":t": int(time.time()),
-        },
-    )
-
-    # Set current time to after deadline
-    # Deadline is in Eastern time (no timezone in string)
-    eastern_tz = ZoneInfo("America/New_York")
-    deadline_str = LAB_CONFIG[lab_key]["deadline"]
-    deadline = datetime.fromisoformat(deadline_str).replace(tzinfo=eastern_tz)
-    after_deadline = deadline + timedelta(hours=1)
-
-    with patch("home_app.api.datetime") as mock_dt:
-        mock_dt.fromisoformat = datetime.fromisoformat
-        mock_dt.now.return_value = after_deadline
-        # Patch LAB_TIMEZONE to use our test timezone
-        with patch("home_app.api.LAB_TIMEZONE", eastern_tz):
-            event = {
-                "requestContext": {"http": {"method": "POST", "sourceIp": "1.2.3.4"}},
-                "source": "api",  # Not from SQS
-            }
-            payload = {
-                "auth": {"email": test_email, "course_key": user[A.COURSE_KEY]},
-                "lab": lab_key,
-            }
-
-            response = api.api_grader(event, None, payload)
-            assert response["statusCode"] == HTTP_FORBIDDEN
-            body = json.loads(response["body"])
-            assert body["error"] is True
-            assert "deadline has passed" in body["message"].lower()
-
-
-def test_api_grader_sqs_bypasses_deadline(monkeypatch, fake_aws):
-    """Test that SQS requests bypass deadline checks."""
-    import time
-    import uuid
-
-    from e11.e11_common import A, create_new_user, users_table
-    from e11.e11core.utils import smash_email
-
-    # Create test user with unique email
-    test_email = f"test-sqs-{uuid.uuid4().hex[:8]}@example.com"
-    user = create_new_user(
-        test_email,
-        {
-            "email": test_email,
-            "preferred_name": "Test User",
-        },
-    )
-    # Register the instance by setting public_ip on the user record
-    users_table.update_item(
-        Key={"user_id": user[A.USER_ID], "sk": user[A.SK]},
-        UpdateExpression=f"SET {A.PUBLIC_IP} = :ip, {A.HOSTNAME} = :hn, {A.HOST_REGISTERED} = :t",
-        ExpressionAttributeValues={
-            ":ip": "1.2.3.4",
-            ":hn": smash_email(test_email),
-            ":t": int(time.time()),
-        },
-    )
-
-    # Mock the grader
-    mock_summary = {
-        "lab": "lab0",
-        "passes": ["test1"],
-        "fails": [],
-        "tests": [{"name": "test1", "passed": True, "message": "OK"}],
-        "score": 100.0,
-        "error": False,
-        "ctx": {"email": test_email, "public_ip": "1.2.3.4", "lab": "lab0"},
-    }
-
-    # Mock secrets manager for SSH key (needs to be JSON with 'cscie-bot' key)
-    mock_secrets = MagicMock()
-    mock_secrets.get_secret_value.return_value = {
-        "SecretString": json.dumps({"cscie-bot": "fake-ssh-key"})
-    }
-    monkeypatch.setattr("home_app.api.secretsmanager_client", mock_secrets)
-
-    with (
-        patch("home_app.api.grader.grade_student_vm", return_value=mock_summary),
-        patch("home_app.api.send_email2"),
-    ):
-        # Set current time to after deadline
-        # Deadline is in Eastern time (no timezone in string)
-        from zoneinfo import ZoneInfo
-
-        eastern_tz = ZoneInfo("America/New_York")
-        deadline_str = LAB_CONFIG["lab0"]["deadline"]
-        deadline = datetime.fromisoformat(deadline_str).replace(tzinfo=eastern_tz)
-        after_deadline = deadline + timedelta(days=1)
-
-        with patch("home_app.api.datetime") as mock_dt:
-            mock_dt.fromisoformat = datetime.fromisoformat
-            mock_dt.now.return_value = after_deadline
-            # Patch LAB_TIMEZONE to use our test timezone
-            with patch("home_app.api.LAB_TIMEZONE", eastern_tz):
-                # SQS request should bypass deadline
-                event = {
-                    "requestContext": {
-                        "http": {"method": "POST", "sourceIp": "test-sender"}
-                    },
-                    "source": "sqs",  # From SQS - should bypass deadline
-                }
-                payload = {
-                    "auth": {"email": test_email, "course_key": user[A.COURSE_KEY]},
-                    "lab": "lab0",
-                }
-
-                response = api.api_grader(event, None, payload)
-                assert response["statusCode"] == HTTP_OK
+    summary = {"lab": "lab0", "score": 5, "passes": ["test"], "fails": [], "tests": [], "error": False}
+    sent = []
+    monkeypatch.setattr(api, "datetime", Clock)
+    monkeypatch.setattr(api, "get_pkey_pem", lambda key: "unused")
+    monkeypatch.setattr(api.grader, "grade_student_vm", lambda *args, **kwargs: summary)
+    monkeypatch.setattr(api, "send_email2", lambda **kwargs: sent.append(kwargs))
+    event = {"source": source, "requestContext": {common.A.REQUEST_TIME_EPOCH: int(received.timestamp() * 1000),
+             "http": {"method": "POST", "sourceIp": "127.0.0.1"}}}
+    response = api.api_grader(event, None, {"auth": {"email": email, "course_key": "test-key"}, "lab": "lab0"})
+    assert response["statusCode"] == HTTP_OK
+    awarded = json.loads(response["body"])["summary"]
+    assert awarded["score"] == score and awarded["late"] == (seconds > 0)
+    assert common.get_grade(user, "lab0") == score
+    assert f"score {float(score)}/5.0" in sent[0]["email_subject"]
+    assert ("89/100" in sent[0]["email_body"]) == (seconds > 0)
 
 
 def test_do_dashboard_computes_next_lab(monkeypatch, fake_aws, dynamodb_local):
@@ -310,7 +127,6 @@ def test_do_dashboard_computes_next_lab(monkeypatch, fake_aws, dynamodb_local):
 
     from e11.e11_common import A, create_new_user, users_table
     from e11.e11core.utils import smash_email
-
     from home_app.sessions import new_session
 
     test_email = f"test-{uuid.uuid4().hex[:8]}@example.com"
@@ -391,7 +207,6 @@ def test_do_dashboard_no_next_lab_when_all_past(monkeypatch, fake_aws, dynamodb_
 
     from e11.e11_common import A, create_new_user, users_table
     from e11.e11core.utils import smash_email
-
     from home_app.sessions import new_session
 
     test_email = f"test-{uuid.uuid4().hex[:8]}@example.com"

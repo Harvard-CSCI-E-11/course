@@ -42,25 +42,25 @@ e11-cli/
 │   │       ├── common.py         # Shared utilities
 │   │       ├── templates/        # Jinja2 HTML templates
 │   │       └── static/           # Static CSS/HTML files
-│   ├── src/home_app/e11.whl      # VENDORED: Copy of e11 wheel (built from ../e11/)
+│   ├── src/e11/                   # GENERATED: Shared runtime package installed by uv
 │   ├── template.yaml             # AWS SAM template
 │   └── tests/                    # Lambda-home test suite
 ├── lambda-leaderboard/            # AWS Lambda leaderboard application
 │   ├── src/
 │   │   └── leaderboard_app/
 │   │       └── ...
-│   ├── src/leaderboard_app/e11.whl  # VENDORED: Copy of e11 wheel
+│   ├── src/e11/                     # GENERATED: Shared runtime package installed by uv
 │   └── tests/
 └── tests/                        # E11 CLI test suite
 ```
 
 ## Critical Architecture Notes for Cursor
 
-### 1. Shared Codebase via Vendored Wheel
+### 1. Shared Codebase via an Installed Runtime Package
 
 **IMPORTANT**: The `e11/` and `e11core/` directories contain the source code that is:
 1. Built into a Python wheel (`dist/e11-*.whl`)
-2. Vended (copied) into `lambda-home/src/home_app/e11.whl` and `lambda-leaderboard/src/leaderboard_app/e11.whl`
+2. Installed by `uv pip install --no-deps --target src` into each Lambda's `src/e11/`
 3. Used by both the CLI tool (installed on student VMs) and the Lambda functions
 
 **When making changes to `e11/` or `e11core/`:**
@@ -72,9 +72,12 @@ e11-cli/
 
 **The vendoring process:**
 - `uv build --wheel` creates `dist/e11-*.whl`
-- `lambda-home/Makefile` target `vend-e11` copies the wheel to `src/home_app/e11.whl`
-- `lambda-leaderboard/Makefile` target `vend-e11` copies the wheel to `src/leaderboard_app/e11.whl`
-- Lambda functions import from the vendored wheel: `from e11.e11_common import ...`
+- Both `vend-e11` targets install the built package into `src/e11/`.
+- Both uv projects declare the local e11 dependency. Locked exports include its
+  runtime dependency graph and exclude the local e11 package path itself.
+- SAM reads `src/requirements.txt` and builds Linux arm64 dependencies.
+- Lambda imports e11 from the normal bundle root; no custom PYTHONPATH is needed.
+- `make lambda-build-check` builds and invokes both real bundles locally.
 
 ### 2. Component Responsibilities
 
@@ -87,7 +90,7 @@ e11-cli/
 
 #### E11 Admin CLI (`e11/e11admin/cli.py`)
 - **e11admin**: Staff-only administrative commands for managing course infrastructure
-- Installed as a separate CLI command via the standard project entry point: `e11admin = "e11.e11admin.cli:main"`
+- Installed as a separate CLI command via the standard project entry point: `e11admin = "e11.e11admin.archive_cli:main"`
 - Runs on faculty desktop computers, not on student VMs
 
 #### Lambda-Home (`lambda-home/src/home_app/`)
@@ -101,7 +104,7 @@ e11-cli/
 
 #### Lambda-Leaderboard (`lambda-leaderboard/src/leaderboard_app/`)
 - Displays course leaderboard
-- Also uses vendored `e11.whl` for shared utilities
+- Also uses the generated `src/e11/` package for shared utilities
 
 ### 3. Data Flow
 
@@ -168,7 +171,7 @@ e11-cli/
 
 ## Important Reminders
 
-- **Never modify vendored `e11.whl` artifacts in `lambda-home/src/home_app/` or `lambda-leaderboard/src/leaderboard_app/` directly** - update `e11/` and re-vend through the Makefile
+- **Never edit generated `src/e11/` copies inside either Lambda directly** — update canonical `e11/` and rerun `make vend-e11`.
 - **Always re-vend after changing `e11/` or `e11core/`**
 - **Changes to `e11/` or `e11core/` affect both CLI and Lambda functions**
 - **Use DynamoDB Local for testing, never mock DynamoDB operations**

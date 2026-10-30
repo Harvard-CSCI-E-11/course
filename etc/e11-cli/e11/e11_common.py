@@ -23,7 +23,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 from e11.email_archive import (CODE, ERROR, EMAIL_PREFIX, WELCOME_STATUS, EmailSubmissionUnknown, archive_and_send)
 
-from e11.e11core.constants import COURSE_KEY_LEN, COURSE_DOMAIN
+from e11.e11core.constants import COURSE_KEY_LEN, COURSE_DOMAIN, POINTS_PER_LAB
 from e11.e11core.utils import get_logger
 
 if TYPE_CHECKING:
@@ -60,43 +60,45 @@ CSCIE_BOT_KEYFILE = 'csci-e-11-bot.pub'
 # Each lab has a redirect URL and a deadline (ISO-8601 format, Eastern time, no timezone)
 
 LAB_TIMEZONE = ZoneInfo("America/New_York")  # Eastern timezone for lab deadlines
+LATE_GRADE_MAX_PERCENT = 89
+LATE_GRADE_MAX_SCORE = round(POINTS_PER_LAB * LATE_GRADE_MAX_PERCENT / 100, 2)
 
 LAB_CONFIG = {
     "lab0": {
-        "redirect": "https://docs.google.com/document/d/1ywWJy6i2BK1qDZcWMWXXFibnDtOmeWFqX1MomPFYEN4/edit?usp=drive_link",
-        "deadline": "2026-02-02T23:59:59"
+        "redirect": "https://github.com/Harvard-CSCI-E-11/course/blob/main/doc/Lab_0.md",
+        "deadline": "2027-02-01T12:00:00"
     },
     "lab1": {
-        "redirect": "https://docs.google.com/document/d/1okJLytuKSqsq0Dz5GUZHhEVj0UqQoWRTsxCac1gWiW4/edit?usp=drive_link",
-        "deadline": "2026-02-09T23:59:59"
+        "redirect": "https://github.com/Harvard-CSCI-E-11/course/blob/main/doc/Lab_1.md",
+        "deadline": "2027-02-08T12:00:00"
     },
     "lab2": {
-        "redirect": "https://docs.google.com/document/d/1-3Wrh1coGqYvgfIbGvei8lw3XJQod85zzuvfdMStsvs/edit?usp=drive_link",
-        "deadline": "2026-02-16T23:59:59"
+        "redirect": "https://github.com/Harvard-CSCI-E-11/course/blob/main/doc/Lab_2.md",
+        "deadline": "2027-02-15T12:00:00"
     },
     "lab3": {
-        "redirect": "https://docs.google.com/document/d/1pOeS03gJRGaUTezjs4-K6loY3SoVx4xRYk6Prj7WClU/edit?usp=drive_link",
-        "deadline": "2026-02-23T23:59:59"
+        "redirect": "https://github.com/Harvard-CSCI-E-11/course/blob/main/doc/Lab_3.md",
+        "deadline": "2027-02-22T12:00:00"
     },
     "lab4": {
-        "redirect": "https://docs.google.com/document/d/1CW48xvpbEE9xPs_6_2cQjOQ4A7xvWgoWCEMgkPjNDuc/edit?usp=drive_link",
-        "deadline": "2026-04-04T23:59:59"
+        "redirect": "https://github.com/Harvard-CSCI-E-11/course/blob/main/doc/Lab_4.md",
+        "deadline": "2027-03-08T12:00:00"
     },
     "lab5": {
-        "redirect": "https://docs.google.com/document/d/1mZOBtyqlpK4OGCXZ80rCWK0ryZ53hNBxL_m-urWzslg/edit?usp=drive_link",
-        "deadline": "2026-04-08T23:59:59"
+        "redirect": "https://github.com/Harvard-CSCI-E-11/course/blob/main/doc/Lab_5.md",
+        "deadline": "2027-03-29T12:00:00"
     },
     "lab6": {
-        "redirect": "https://docs.google.com/document/d/1aRFFRaWmMrmgn3ONQDGhYghC-823GbGzAP-7qdt5E0U/edit?usp=drive_link",
-        "deadline": "2026-04-13T23:59:59"
+        "redirect": "https://github.com/Harvard-CSCI-E-11/course/blob/main/doc/Lab_6.md",
+        "deadline": "2027-04-12T12:00:00"
     },
     "lab7": {
-        "redirect": "https://docs.google.com/document/d/14RdMZr3MYGiazjtEklW-cYWj27ek8YV2ERFOblZhIoM/edit?usp=drive_link",
-        "deadline": "2026-04-27T23:59:59"
+        "redirect": "https://github.com/Harvard-CSCI-E-11/course/blob/main/doc/Lab_7.md",
+        "deadline": "2027-04-26T12:00:00"
     },
     "lab8": {
-        "redirect": "https://docs.google.com/document/d/1WEuKLVKmudsOgrpEqaDvIHE55kWKZDqAYbEvPWaA4gY/edit?usp=drive_link",
-        "deadline": "2026-05-11T23:59:59"
+        "redirect": "https://github.com/Harvard-CSCI-E-11/course/blob/main/doc/Lab_8.md",
+        "deadline": "2027-05-10T12:00:00"
     }
 }
 
@@ -170,6 +172,11 @@ class A:                        # pylint: disable=too-few-public-methods
     PREFERRED_NAME = 'preferred_name'
     PUBLIC_IP = 'public_ip'           # public IP address
     SCORE = 'score'
+    RAW_SCORE = 'raw_score'
+    LATE = 'late'
+    DEADLINE = 'deadline'
+    REQUESTED_AT = 'requested_at'
+    REQUEST_TIME_EPOCH = 'timeEpoch'
     SESSION_CREATED = 'session_created'  # time_t
     SESSION_EXPIRE = 'session_expire'    # time_t
     KEY = 'key'                          # typically for S3
@@ -424,12 +431,52 @@ def _require_list(val: Any, field: str) -> List[str]:
     return val
 
 
-def add_grade(user, lab, public_ip, summary, note: str | None = None):
+class GradePolicy(BaseModel):
+    """Awarded score and timing evidence for one grading request."""
+
+    raw_score: float
+    score: float
+    late: bool
+    deadline: str | None
+    requested_at: str
+
+
+class PreviousGrade(DictLikeModel):
+    """A retained higher grade and its existing email-friendly UTC date."""
+
+    score: float
+    date: str
+
+
+def grading_receipt_time(request_context: dict[str, Any]) -> datetime | None:
+    """Use AWS receipt time so cold starts and queue delays cannot make work late."""
+    milliseconds = request_context.get(A.REQUEST_TIME_EPOCH)
+    if milliseconds is None:
+        return None
+    return datetime.fromtimestamp(int(milliseconds) / 1000, timezone.utc)
+
+
+def evaluate_grade_policy(lab: str, score: float, requested_at: datetime | None = None) -> GradePolicy:
+    """Accept late requests but cap their score at89%; noon itself is on time."""
+    requested_at = requested_at or datetime.now(timezone.utc)
+    if requested_at.tzinfo is None:
+        raise ValueError("Grading request time must include a timezone")
+    config = LAB_CONFIG.get(f"lab{lab.removeprefix('lab')}")
+    deadline = datetime.fromisoformat(config[A.DEADLINE]).replace(tzinfo=LAB_TIMEZONE) if config else None
+    late = deadline is not None and requested_at > deadline
+    return GradePolicy(raw_score=score, score=min(score, LATE_GRADE_MAX_SCORE) if late else score,
+                       late=late, deadline=deadline.isoformat() if deadline else None,
+                       requested_at=requested_at.isoformat())
+
+
+def add_grade(user, lab, public_ip, summary, note: str | None = None, *, requested_at: datetime | None = None):
     # Record grades
     passes = summary.get("passes")
     fails = summary.get("fails")
     _require_list(passes, "passes")
     _require_list(fails, "fails")
+    policy = evaluate_grade_policy(lab, float(summary.get(A.RAW_SCORE, summary[A.SCORE])), requested_at)
+    summary.update(policy.model_dump())
 
     item = {
         A.USER_ID: user.user_id,
@@ -437,10 +484,15 @@ def add_grade(user, lab, public_ip, summary, note: str | None = None):
         A.LAB: lab,
         A.PUBLIC_IP: public_ip,
         A.SCORE: str(summary["score"]),
+        A.RAW_SCORE: str(policy.raw_score),
+        A.LATE: policy.late,
+        A.REQUESTED_AT: policy.requested_at,
         "pass_names": passes,
         "fail_names": fails,
         "raw": json.dumps(summary, default=str)[:35000],
     }
+    if policy.deadline is not None:
+        item[A.DEADLINE] = policy.deadline
     if note is not None and note != "":
         item["note"] = note
     ret = users_table.put_item(Item=item)
@@ -499,6 +551,14 @@ def get_highest_grade_record(user, lab):
     if not items:
         return None
     return max(items, key=grade_record_rank)
+
+
+def previous_grade_for_email(record: dict | None, score: float) -> PreviousGrade | None:
+    """Explain a higher retained result consistently for every grading sender."""
+    if record is None or float(record.get(A.SCORE, 0)) <= score:
+        return None
+    timestamp = str(record[A.SK]).split("#", 2)[2].replace("T", " ").split(".", 1)[0]
+    return PreviousGrade(score=float(record[A.SCORE]), date=timestamp)
 
 ################################################################
 ## image stuff

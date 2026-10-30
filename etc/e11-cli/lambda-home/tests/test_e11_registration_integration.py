@@ -2,9 +2,9 @@ import json as json_module
 from unittest.mock import Mock, patch
 
 import pytest
-from e11.e11_common import create_new_user
 from test_utils import create_test_config_data, create_test_config_file
 
+from e11.e11_common import create_new_user
 from home_app import api
 
 

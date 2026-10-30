@@ -14,6 +14,8 @@ TEMPLATE_DIR    := src/home_app/templates
 S3_BUCKET       ?= csci-e-11
 AWS_PROFILE     ?= fas
 ROOT_DOMAIN     ?= csci-e-11.org
+# SAM_CONFIG chooses the build's TOML settings; deploy targets select it explicitly.
+SAM_CONFIG      ?= samconfig-prod.toml
 
 # Shell Configuration (unchanged)
 SHELL := /bin/bash
@@ -44,7 +46,7 @@ install-sam-ubuntu:
 	/bin/rm -rf aws-sam-cli-linux-x86_64.zip sam-installation
 
 lint: vend-e11
-	@echo "--- Validating imports from vendored wheel ---"
+	@echo "--- Validating imports from the installed runtime package ---"
 	uv run --locked pytest -xvs tests/test_import_validation.py
 	uv run --locked djlint $(DJLINT_FLAGS) $(TEMPLATE_DIR)/*.html
 	uv run --locked ruff check
@@ -62,9 +64,12 @@ test-email: vend-e11
 	uv run --locked pytest tests/test_email_archive.py
 
 # This target generates the requirements.txt for SAM to use
-src/requirements.txt: uv.lock pyproject.toml
+.PHONY: requirements build
+requirements: src/requirements.txt
+
+src/requirements.txt: uv.lock pyproject.toml Makefile
 	@echo "--- Exporting requirements.txt from uv ---"
-	uv export --locked --no-dev --no-emit-project --no-hashes --format requirements.txt --output-file src/requirements.txt
+	uv export --locked --no-dev --no-emit-project --no-emit-package e11 --no-hashes --format requirements.txt --output-file $@ > /dev/null
 
 distclean:
 	@echo "--- Cleaning up project files ---"
@@ -78,34 +83,31 @@ distclean:
 # --- Custom Vendoring
 .PHONY: vend-e11
 vend-e11: install
-	@echo "Building src/home_app/e11.whl via uv"
+	@echo "Building the shared e11 wheel via uv"
 	( cd .. && uv build --wheel --out-dir dist )
-	@echo "Installing wheel into src/home_app/ as e11.whl"
-	install -d src/home_app
-	install -m 444 $$(ls -t ../dist/*.whl | head -1) src/home_app/e11.whl
-	@echo "OK -> src/home_app/e11.whl"
+	uv pip install --no-deps --reinstall --target src "$$(ls -t ../dist/e11-*.whl | head -1)"
+	/bin/rm -f src/home_app/e11.whl
 
 # --- AWS SAM/CLI Targets
 # These are deployment tasks, perfect for Make.
 # They depend on the uv-based targets above.
 
 .PHONY: prod-vbd stage-vbd
-prod-vbd: template.yaml samconfig-prod.toml src/requirements.txt vend-e11 check
-	finch vm start || echo AWS finch is already running
-	sam validate --config-file samconfig-prod.toml -t template.yaml --lint
-	sam build --parallel --use-container --config-file samconfig-prod.toml -t template.yaml
-	sam deploy --config-file "$$(pwd)/samconfig-prod.toml"  \
-		--parameter-overrides DeploymentTimestamp="$$(date +'%Y-%m-%dT%H:%M:%S%z %Z')" \
-		--no-confirm-changeset -t .aws-sam/build/template.yaml
+build: requirements vend-e11
+	sam build --parallel --use-container --config-file $(SAM_CONFIG) -t template.yaml
+
+prod-vbd: template.yaml samconfig-prod.toml
+	$(MAKE) -C .. email-check
+	$(MAKE) build SAM_CONFIG=samconfig-prod.toml
+	uv run --locked python ../e11/e11admin/sam_deploy.py --config samconfig-prod.toml --template .aws-sam/build/template.yaml
+	$(MAKE) -C .. lambda-log-retention LOG_STACK=$(STACK_PROD) AWS_PROFILE=$(AWS_PROFILE) AWS_REGION=$(AWS_REGION)
 	curl --silent  https://$(ROOT_DOMAIN)/ | head -3
 
-stage-vbd: template.yaml samconfig-stage.toml src/requirements.txt vend-e11 check
-	finch vm start || echo AWS finch is already running
-	sam validate --config-file samconfig-stage.toml -t template.yaml --lint
-	sam build --parallel --use-container --config-file samconfig-stage.toml -t template.yaml
-	sam deploy --config-file "$$(pwd)/samconfig-stage.toml" \
-		--parameter-overrides DeploymentTimestamp="$$(date +'%Y-%m-%dT%H:%M:%S%z %Z')" \
-		--no-confirm-changeset -t .aws-sam/build/template.yaml
+stage-vbd: template.yaml samconfig-stage.toml
+	$(MAKE) -C .. email-check
+	$(MAKE) build SAM_CONFIG=samconfig-stage.toml
+	uv run --locked python ../e11/e11admin/sam_deploy.py --config samconfig-stage.toml --template .aws-sam/build/template.yaml
+	$(MAKE) -C .. lambda-log-retention LOG_STACK=$(STACK_STAGE) AWS_PROFILE=$(AWS_PROFILE) AWS_REGION=$(AWS_REGION)
 	curl --silent  https://stage.$(ROOT_DOMAIN)/ | head -3
 
 # Show function names

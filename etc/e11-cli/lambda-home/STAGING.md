@@ -1,171 +1,39 @@
-# Staging Environment Setup
+# Staging and backup environment
 
-This document describes the staging environment setup for the lambda-home project.
+`https://stage.csci-e-11.org/` is an independent Lambda deployment used as a backup
+and for real course testing. It intentionally writes production data; a complete
+duplicate data system is not intended.
 
-## Overview
+| Setting | Production | Staging |
+| --- | --- | --- |
+| Stack | `home-app-prod` | `home-app-stage` |
+| API stage | `prod` | `stage` |
+| Public host | `csci-e-11.org` | `stage.csci-e-11.org` |
+| Session table | `home-app-prod-sessions` | `home-app-stage-sessions` |
 
-The staging environment provides a separate deployment target at `https://stage.csci-e-11.org/` that shares resources with production but allows for testing UI/UX changes and grading functionality.
+Both deployments share `e11-users`, `Leaderboard`, the course Route53 zone, SES,
+and the OIDC/SSH/SQS secrets. Application image/email operations use `csci-e-11`.
+The deployed staging `ImageBucketName` currently differs (`cscie-11`); reconcile
+that existing parameter/IAM/event-rule drift explicitly before testing images.
 
-## Architecture
+Sessions are separate. The current parent-domain cookie collides between stacks;
+logging into one can replace the other's cookie. The host-only cookie migration
+is a proposal in the root TODO, not part of the uv/grading update.
 
-### Shared Resources
-- **DynamoDB Tables**: Both production and staging use the same users and sessions tables
-- **Route53 Hosted Zone**: Same hosted zone for DNS management
-- **ACM Certificate**: Wildcard certificate covering both `csci-e-11.org` and `*.csci-e-11.org`
-- **OIDC Configuration**: Same HarvardKey OIDC setup
-
-### Session Sharing
-- Staging environment accepts cookies from the production domain (`csci-e-11.org`)
-- Sessions created on production work on staging and vice versa
-- This allows testing with existing authenticated sessions
-
-### Domain Configuration
-- **Production**: `https://csci-e-11.org/`
-- **Staging**: `https://stage.csci-e-11.org/`
-
-## Deployment
-
-### Current Setup: Separate Stacks
-The staging environment is deployed as a separate SAM stack from production. This allows independent deployments:
-
-- **Production Stack**: `home-app` - bound to `csci-e-11.org`
-- **Staging Stack**: `home-app-stage` - bound to `stage.csci-e-11.org`
-
-**Benefits**: You can deploy to staging without affecting production, and vice versa.
+One parameterized `template.yaml` and the two `samconfig-*.toml` files define both
+stacks. There are no generated template parts or build-stage/deploy-stage targets.
+From `etc/e11-cli/lambda-home`, with Docker/Finch running:
 
 ```bash
-# Deploy staging only (default)
-make build
-make deploy
-
-# Deploy staging explicitly
-make build-stage
-make deploy-stage
-
-# Deploy production only
-make build-prod
-make deploy-prod
+make build                    # Build only; no AWS deployment
+# Once the requested deployment is authorized:
+make stage-vbd                # Validate, build, deploy staging, set log retention
+make prod-vbd                 # Validate, build, deploy production, set log retention
 ```
 
-### Deploy Commands
-
-#### Current Separate Stack Approach
-```bash
-# Staging only (default)
-make build
-make deploy
-
-# Or staging explicitly
-make build-stage
-make deploy-stage
-
-# Production only
-make build-prod
-make deploy-prod
-
-# Or use SAM directly
-make generate-templates
-sam build --parallel -t template-stage.yaml
-sam deploy --stack-name home-app-stage --region us-east-1 -t template-stage.yaml
-```
-
-**Note**: Each environment is deployed independently, allowing you to test changes on staging without affecting production.
-
-### Template Management
-
-The templates are generated from parts using `cat`:
-
-- **Production**: `template-top.yaml` + `template-common.yaml` + `template-bottom.yaml` → `template.yaml`
-- **Staging**: `template-stage-top.yaml` + `template-common.yaml` + `template-stage-bottom.yaml` → `template-stage.yaml`
-
-To regenerate templates after changes:
-```bash
-make generate-templates
-```
-
-### Environment Detection
-The Lambda function automatically detects which environment it's running in by checking the `stage` field in the API Gateway event context:
-- Production: `stage = "prod"` (or empty)
-- Staging: `stage = "stage"`
-
-## Testing
-
-### What Works in Staging
-- ✅ UI/UX testing
-- ✅ Grading functionality
-- ✅ Session management (using production sessions)
-- ✅ API endpoints
-
-### What Doesn't Work in Staging
-- ❌ New user registration (OIDC redirects to production)
-- ❌ New authentication flows (OIDC redirects to production)
-
-### Testing Workflow
-1. **Login on Production**: Visit `https://csci-e-11.org/` and authenticate
-2. **Test on Staging**: Visit `https://stage.csci-e-11.org/` - your session will be available
-3. **Test Changes**: Make UI/UX changes and test them on staging
-4. **Deploy to Production**: When satisfied, deploy the same code to production
-
-## Configuration
-
-### Environment Variables
-The staging environment uses the same environment variables as production:
-- `COOKIE_DOMAIN`: Set to `csci-e-11.org` for both environments
-- `DDB_TABLE_ARN`: Same DynamoDB table
-- `SESSIONS_TABLE_NAME`: Same sessions table
-- `OIDC_SECRET_ID`: Same OIDC configuration
-
-### Cookie Domain Logic
-The `get_cookie_domain(event)` function ensures that:
-- Production sets cookies for `csci-e-11.org`
-- Staging also sets cookies for `csci-e-11.org` (not `stage.csci-e-11.org`)
-- This enables session sharing between environments
-
-## Monitoring
-
-### Logs
-```bash
-# Production logs
-make tail
-
-# Staging logs
-make tail-stage
-```
-
-### URLs
-```bash
-# Show both URLs
-make urls
-
-# Show specific URLs
-make prod-url
-make stage-url
-```
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Staging not accessible**: Check that the DNS record for `stage.csci-e-11.org` exists in Route53
-2. **Sessions not working**: Verify that cookies are being set with domain `csci-e-11.org`
-3. **OIDC redirects**: Remember that OIDC always redirects to production - this is expected behavior
-
-### Debugging
-- Check CloudWatch logs for both environments
-- Verify ACM certificate covers both domains
-- Ensure Route53 hosted zone contains both domain records
-
-## Security Considerations
-
-- Both environments share the same DynamoDB tables
-- Sessions are shared between environments
-- OIDC configuration is shared
-- Consider this when testing sensitive operations
-
-## Future Enhancements
-
-Potential improvements for the staging environment:
-- Separate DynamoDB tables for staging
-- Staging-specific OIDC configuration
-- Environment-specific feature flags
-- Automated testing pipeline
+The deploy targets run the complete local DynamoDB/MinIO suite, preserve TOML
+parameter overrides, add a UTC timestamp, and set 180-day Lambda-log retention.
+Tests use isolated local data; actual staging requests change shared production
+course data and can send real email. `PUBLIC_DOMAIN_NAME` selects the OIDC callback
+host; both callback URLs must be registered with the provider. A successful real
+stage login remains an acceptance check.

@@ -5,9 +5,9 @@ Test staging environment detection and cookie domain handling
 import json
 
 import pytest
+
 from e11 import e11_common
 from e11.e11core.constants import COURSE_DOMAIN
-
 from home_app import common, home, oidc
 
 

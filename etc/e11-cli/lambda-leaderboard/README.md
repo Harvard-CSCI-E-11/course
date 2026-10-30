@@ -5,8 +5,9 @@ This is a much simpler SAM deployment than lambda-home, so it's a great place to
 To build and deploy your application for the first time, run the following in your shell:
 
 ```bash
-sam build --use-container
-sam deploy --guided
+make build
+# After review and with production deployment authorized:
+make prod-vbd
 ```
 
 The first command builds the source of the application. The second command packages and deploy the application to AWS, with a series of prompts:

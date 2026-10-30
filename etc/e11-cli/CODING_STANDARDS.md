@@ -17,8 +17,8 @@ This document is the canonical source for repository-wide coding standards.
 - Staff-only administrative behavior belongs in `e11/e11admin/`.
 - Lambda dashboard behavior belongs in `lambda-home/src/home_app/`.
 - Lambda leaderboard behavior belongs in `lambda-leaderboard/src/leaderboard_app/`.
-- The Lambda projects consume `e11/` through the vendored `e11.whl`; do not edit vendored wheel contents directly.
-- Keep component-specific logic inside its component. If shared behavior is needed by both CLI and Lambda code, put it in `e11/` and re-vend the wheel through the Makefile workflow.
+- The Lambda projects install the shared wheel into generated `src/e11/` directories with uv; never edit those generated copies directly.
+- Keep component-specific logic inside its component. If shared behavior is needed by both CLI and Lambda code, put it in canonical `e11/` and rerun `make vend-e11` through the Makefile workflow.
 
 ## Testing
 

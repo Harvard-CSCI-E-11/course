@@ -10,9 +10,9 @@ This test suite validates:
 """
 
 import pytest
-from e11.e11_common import LAB_REDIRECTS
 from test_utils import create_lambda_event
 
+from e11.e11_common import LAB_REDIRECTS
 from home_app import home
 
 
@@ -31,7 +31,7 @@ def test_all_lab_redirects_exist():
 
 
 def test_lab_redirects_return_valid_redirects():
-    """Test that all lab redirect routes return valid HTTP 302 redirects"""
+    """Exercise every lab route and require its public GitHub Markdown target."""
     for lab_num in range(9):
         path = f"/lab{lab_num}"
         event = create_lambda_event(path, method="GET")
@@ -43,8 +43,9 @@ def test_lab_redirects_return_valid_redirects():
         assert "Location" in response["headers"], (
             f"/lab{lab_num} response missing Location header"
         )
-        assert response["headers"]["Location"] == LAB_REDIRECTS[lab_num], (
-            f"/lab{lab_num} redirects to wrong URL: expected {LAB_REDIRECTS[lab_num]}, got {response['headers']['Location']}"
+        expected = f"https://github.com/Harvard-CSCI-E-11/course/blob/main/doc/Lab_{lab_num}.md"
+        assert response["headers"]["Location"] == expected, (
+            f"/lab{lab_num} redirects to wrong URL: expected {expected}, got {response['headers']['Location']}"
         )
 
 
@@ -763,7 +764,6 @@ def test_parse_event_handles_invalid_base64():
 def test_api_dispatch_routes_all_actions():
     """Test that dispatch function routes all known actions correctly"""
     from e11.e11core.constants import API_PATH
-
     from home_app.api import APINotAuthenticated, dispatch
 
     # Create minimal event and context
@@ -806,7 +806,6 @@ def test_api_dispatch_routes_all_actions():
 def test_api_dispatch_unknown_action():
     """Test that dispatch returns 400 for unknown actions"""
     from e11.e11core.constants import API_PATH
-
     from home_app.api import dispatch
 
     event = {"rawPath": API_PATH}
@@ -822,7 +821,6 @@ def test_api_dispatch_unknown_action():
 def test_api_dispatch_wrong_method():
     """Test that dispatch handles wrong HTTP methods"""
     from e11.e11core.constants import API_PATH
-
     from home_app.api import dispatch
 
     event = {"rawPath": API_PATH}

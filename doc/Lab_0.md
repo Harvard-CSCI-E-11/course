@@ -11,8 +11,8 @@ Raspberry Pi Zero, a Pi 3, Pi 4 or Pi 5. Basically, use whatever you
 can get---memory is expensive these days because of the AI boom.
 
 You will be using the Raspberry Pi:
-* in [Lab #7](Lab_7) to register on a Wi-Fi network and send a message to the [CSCI E-11 Leaderboard](https://leaderboard.csci-e-11.org).
-* in [Lab #8](Lab_8) to take a photograph and post to both your [CSCI E-11 Dashboard](https://csci-e-11.org) and to the image board you created in [Lab #6](Lab_6).
+* in [Lab #7](Lab_7.md) to register on a Wi-Fi network and send a message to the [CSCI E-11 Leaderboard](https://leaderboard.csci-e-11.org).
+* in [Lab #8](Lab_8.md) to take a photograph and post to both your [CSCI E-11 Dashboard](https://csci-e-11.org) and to the image board you created in [Lab #6](Lab_6.md).
 
 There are many versions of the Raspberry Pi, and you can all of them with this lab. The two key features that you need to enable are connecting to the Internet and to use a camera.
 
