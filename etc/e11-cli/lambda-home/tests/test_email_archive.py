@@ -320,6 +320,38 @@ def test_email_list_and_new_tab_message_escape_content(mail_services):
         (preview / "email_message.html").write_text(response[email_views.BODY])
 
 
+@pytest.mark.parametrize("message_date", ["Tue, 29 Sep 2026 14:07:08 -0400", None])
+def test_message_date_comes_from_archived_mime(mail_services, message_date):
+    """A historical or absent Date header must never become the archive timestamp."""
+    mail_services.accept(2)
+    user = common.create_new_user(f"date-{uuid.uuid4().hex}@example.org")
+    common.send_email2(
+        user.emails(), "Original date", "Date fixture", user_id=user.user_id
+    )
+    row = next(row for row in email_rows(user) if row.subject == "Original date")
+    raw = mail_services.s3.get_object(Bucket=archive.EMAIL_BUCKET, Key=row.key)[
+        S3_BODY
+    ].read()
+    mime = BytesParser(policy=policy.default).parsebytes(raw)
+    del mime[email_views.DATE_HEADER]
+    if message_date is not None:
+        mime[email_views.DATE_HEADER] = message_date
+    mail_services.s3.put_object(
+        Bucket=archive.EMAIL_BUCKET, Key=row.key, Body=mime.as_bytes(policy=policy.SMTP)
+    )
+    event = login(user)
+    event[RAW_PATH] = "/email/message"
+    event[REQUEST_CONTEXT][HTTP][PATH] = "/email/message"
+    event[QUERY] = {"timestamp": row.timestamp}
+    response = home.lambda_handler(event, None)
+    assert response[email_views.STATUS_CODE] == 200
+    assert f"Date: {message_date or '(not provided)'}\n" in response[email_views.BODY]
+    assert (
+        f"Date: {home.utc_iso_to_eastern(row.timestamp)}"
+        not in response[email_views.BODY]
+    )
+
+
 def test_message_requires_owner_and_active_session(mail_services):
     mail_services.accept()
     owner = common.create_new_user(f"owner-{uuid.uuid4().hex}@example.org")

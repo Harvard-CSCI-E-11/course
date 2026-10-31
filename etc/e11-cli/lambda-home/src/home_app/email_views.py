@@ -3,7 +3,7 @@
 Both list and message routes resolve identity from the existing session.
 Message lookups use that student's DynamoDB partition, never a URL user ID.
 The index authorizes reading the corresponding MIME object from private S3.
-Email headers and plain-text content are escaped by the dedicated templates.
+The MIME Date header and plain-text content are escaped by the templates.
 Responses prohibit browser caching because archived messages contain course keys.
 """
 
@@ -33,6 +33,7 @@ HEADERS = "headers"
 BODY = "body"
 LOCATION = "Location"
 TIMESTAMP = "timestamp"
+DATE_HEADER = "Date"
 QUERY = "queryStringParameters"
 PRIVATE_HEADERS = {
     CONTENT_TYPE_HEADER: HTML_CONTENT_TYPE,
@@ -73,12 +74,20 @@ def _message_page(user, timestamp, session, env):
         mime = BytesParser(policy=policy.default).parsebytes(stream.read())
     finally:
         stream.close()
+    message_date = next(
+        (
+            value
+            for name, value in mime.raw_items()
+            if name.casefold() == DATE_HEADER.casefold()
+        ),
+        None,
+    )
     part = mime.get_body(preferencelist=("plain",))
     body = part.get_content() if part else "This message has no plain-text body."
     return _response(
         200,
         env.get_template("email_message.html").render(
-            ses=session, email=record, message_body=body
+            ses=session, email=record, message_body=body, message_date=message_date
         ),
     )
 

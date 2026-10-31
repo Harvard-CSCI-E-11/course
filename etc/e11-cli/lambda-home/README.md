@@ -35,7 +35,10 @@ they preserve TOML parameters and apply 180-day log retention after deployment.
 Signed-in students can use `/email` to list their archived course email.
 Subjects open `/email/message?timestamp=...` in another tab. Both routes enforce
 the existing session and user ownership, serve private non-cacheable responses,
-and display escaped plain-text MIME content. See the parent CLI README for
+and display escaped plain-text MIME content. The message’s `Date:` line uses the
+archived MIME header with its original timezone; the separate Time field uses
+the archive index timestamp. Missing Date headers show `(not provided)`.
+See the parent CLI README for
 archive storage, welcome behavior, and `make email-check` service configuration.
 
 ### Lab redirects

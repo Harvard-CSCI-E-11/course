@@ -39,6 +39,8 @@ You can use the header to attach individual devices to your Pi, but you can also
 * [Tinkersphere's Gameboy-Styled HAT](https://tinkersphere.com/raspberry-pi-hats/2901-gameboy-style-gamepad-hat-for-raspberry-pi.html) which has tiny video game controls and a small screen
 * [A 3.5 Inch 480x320 Touch Screen TFT LCD Display Panel](https://www.amazon.com/480x320-Touch-Screen-Display-Raspberry/dp/B0DY5BVGNH) which lets you have a self-contained computer that displays information and accepts input that fits in the palm of your hand (minus the power supply, alas).
 
+Please post what you bought to the [Lab #0 discussion on Ed Discussion](https://edstem.org/us/courses/108391/discussion?category=Lab+%230).
+
 # **Get an A**
 
 Tell us (by taking the Lab 0 Quiz) that you’ve purchased your Raspberry Pi. Beyond submitting the Lab 0 Quiz, no other submission steps are required.

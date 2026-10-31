@@ -1,14 +1,21 @@
 <!-- Display one email after session and student-ownership checks.
-     Headers come from the student's DynamoDB email index.
-     The body is parsed from the matching private S3 MIME object.
+     Subject and recipients come from the student's DynamoDB email index.
+     The Date header and body come from the matching private S3 MIME object.
      All content is escaped and shown as text rather than executable HTML.
      This page opens independently from the email history tab. -->
 {% extends "base.html" %}
 {% block title %}{{ email.subject | e }} — CSCI E-11{% endblock title %}
 {% block content %}
 <h2>{{ email.subject | e }}</h2>
+<p><strong>Email status:</strong> {{ email.status | e }}</p>
 <p><strong>Time:</strong> {{ email.timestamp | email_eastern | e }}</p>
-<p><strong>To:</strong> {{ email.recipients | join(', ') | e }}</p>
-<p><strong>Submission status:</strong> {{ email.status | e }}</p>
-<pre style="white-space: pre-wrap; overflow-wrap: anywhere;">{{ message_body | e }}</pre>
+
+<pre style="white-space: pre-wrap; overflow-wrap: anywhere;">
+From: admin@csci-e-11.org
+To: {{ email.recipients | join(', ') | e }}
+Subject: {{ email.subject | e }}
+Date: {{ (message_date or '(not provided)') | e }}
+
+{{ message_body | e }}
+</pre>
 {% endblock content %}
