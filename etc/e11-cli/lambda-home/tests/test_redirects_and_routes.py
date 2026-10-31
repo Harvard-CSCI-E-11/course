@@ -325,14 +325,12 @@ def test_get_cookie_domain():
     staging_event = {"requestContext": {"stage": "stage"}}
     prod_event = {"requestContext": {"stage": "prod"}}
 
-    # Both should return the course domain (staging uses prod domain for cookies)
+    # Neither environment exposes its session cookie to sibling/student hosts
     staging_domain = get_cookie_domain(staging_event)
     prod_domain = get_cookie_domain(prod_event)
 
-    from e11.e11core.constants import COURSE_DOMAIN
-
-    assert staging_domain == COURSE_DOMAIN
-    assert prod_domain == COURSE_DOMAIN  # or COOKIE_DOMAIN, depending on config
+    assert staging_domain is None
+    assert prod_domain is None
 
 
 def test_resp_json_creates_valid_response():

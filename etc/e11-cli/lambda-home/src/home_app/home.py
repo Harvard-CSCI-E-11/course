@@ -31,7 +31,8 @@ from typing import Any
 import jinja2
 from boto3.dynamodb.conditions import Key
 from itsdangerous import BadSignature, SignatureExpired
-from jinja2 import Environment, FileSystemLoader, TemplateNotFound
+from jinja2 import Environment, FileSystemLoader, TemplateNotFound, select_autoescape
+from markupsafe import escape
 
 from e11.e11_common import (
     LAB_CONFIG,
@@ -50,6 +51,7 @@ from e11.e11core.constants import (
     CONTENT_TYPE_HEADER,
     CORS_HEADER,
     CORS_WILDCARD,
+    COURSE_DOMAIN,
     CSS_CONTENT_TYPE,
     GITHUB_REPO_URL,
     HTML_CONTENT_TYPE,
@@ -69,6 +71,7 @@ from . import api, email_views, oidc, sessions
 from .api import make_presigned_url, resp_json
 from .common import (
     COOKIE_NAME,
+    LEGACY_COOKIE_NAME,
     NESTED,
     SESSION_TTL_SECS,
     STATIC_DIR,
@@ -127,13 +130,14 @@ def utc_iso_to_eastern(iso_str: str) -> str:
 env = Environment(
     loader=FileSystemLoader(
         ["templates", TEMPLATE_DIR, os.path.join(NESTED, "templates")]
-    )
+    ),
+    autoescape=select_autoescape(("html", "xml")),
 )
 env.globals["API_PATH"] = API_PATH
 env.globals["version"] = __version__
 env.filters["eastern"] = eastern_filter
 env.filters["email_eastern"] = utc_iso_to_eastern
-env.filters["tojson"] = lambda x: json.dumps(x, default=str) if x is not None else "{}"
+env.policies["json.dumps_kwargs"] = {"sort_keys": True, "default": str}
 env.globals["GITHUB_REPO_URL"] = GITHUB_REPO_URL
 env.globals["LAB_CONFIG"] = LAB_CONFIG
 
@@ -144,6 +148,7 @@ EMAIL_SUBJECT_PREFIX = "CSCI E-11 Update: "
 EMAIL_SUBJECT_BASE = "CSCI E-11 Update"
 EMAIL_SUBJECT_NEW_DNS_RECORDS = "New DNS records created for {hostname}"
 EMAIL_SUBJECT_DNS_RECORDS_UPDATED = "DNS records updated for {hostname}"
+
 
 def resp_text(
     status: int,
@@ -326,7 +331,7 @@ def do_dashboard(event):  # pylint: disable=too-many-locals,too-many-branches
     except EmailNotRegistered:
         return resp_text(
             HTTP_INTERNAL_ERROR,
-            f"Internal error: no user for email address {ses.email}",
+            f"Internal error: no user for email address {escape(ses.email)}",
         )
 
     # Get the dashboard items --- everything from DynamoDB for this user_id
@@ -499,7 +504,7 @@ def do_login_direct(event):
             email_display = user.email or "unknown"
             return resp_text(
                 HTTP_FORBIDDEN,
-                f"Course key mismatch for email {email_display} or email is not registered.",
+                f"Course key mismatch for email {escape(email_display)} or email is not registered.",
             )
 
         # If user has claims, redirect to regular login
@@ -635,10 +640,13 @@ def safe_dump_environment():
 
 
 # pylint: disable=too-many-return-statements, disable=too-many-branches, disable=unused-argument
-def lambda_handler(event, context):
+def _lambda_handler(event, context):
     """called by lambda.
     break out the HTTP method, the HTTP path, and the JSON body as a payload.
     """
+
+    if event.get("action") == "heartbeat" and "requestContext" not in event:
+        return api.api_heartbeat(event, context)
 
     # Check for upload
     request_id, bucket, key = parse_s3_event(event)
@@ -790,3 +798,26 @@ def lambda_handler(event, context):
                 HTTP_INTERNAL_ERROR,
                 {"error": True, "message": str(e), "session_id": session_id},
             )
+
+
+def lambda_handler(event, context):
+    """Handle one invocation and renew the host-only cookie after authentication."""
+    token = sessions.CURRENT_SESSION.set(None)
+    try:
+        response = _lambda_handler(event, context)
+        session = sessions.CURRENT_SESSION.get()
+        if session is not None and "statusCode" in response:
+            cookies = response.setdefault("cookies", [])
+            if not any(cookie.startswith(f"{COOKIE_NAME}=") for cookie in cookies):
+                cookies.append(make_cookie(COOKIE_NAME, session.sid))
+        if "statusCode" in (
+            response or {}
+        ) and LEGACY_COOKIE_NAME in sessions.parse_cookies(event):
+            # Delete obsolete cookies at both scopes without issuing a domain auth cookie.
+            response.setdefault("cookies", []).extend(
+                make_cookie(LEGACY_COOKIE_NAME, "", clear=True, domain=domain)
+                for domain in (None, COURSE_DOMAIN)
+            )
+        return response
+    finally:
+        sessions.CURRENT_SESSION.reset(token)

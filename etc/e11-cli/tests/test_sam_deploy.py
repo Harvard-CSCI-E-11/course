@@ -31,7 +31,7 @@ parameter_overrides = 'EnvironmentName="prod" CertificateArn="" Note="two words"
     assert values == {"EnvironmentName": "prod", "CertificateArn": "", "Note": "two words", "DeploymentTimestamp": "2026-10-30T00:00:00Z"}
 
 
-@pytest.mark.parametrize("app,environment,count", [("lambda-home", "prod", 10), ("lambda-home", "stage", 10), ("lambda-leaderboard", "prod", 7)])
+@pytest.mark.parametrize("app,environment,count", [("lambda-home", "prod", 11), ("lambda-home", "stage", 11), ("lambda-leaderboard", "prod", 7)])
 def test_checked_in_configs_keep_their_parameters(app, environment, count):
     root = Path(__file__).resolve().parents[1] / app
     deployment = sam_deploy.Deployment.load(root / f"samconfig-{environment}.toml", root / "template.yaml")
@@ -39,6 +39,8 @@ def test_checked_in_configs_keep_their_parameters(app, environment, count):
     assert deployment.parameters["EnvironmentName"] == environment
     assert deployment.parameters["CertificateArn"] == ""
     assert deployment.parameters["UsersTableName"] == "e11-users"
+    if app == "lambda-home":
+        assert deployment.parameters["ImageBucketName"] == "csci-e-11"
     assert deployment.parameters[sam_deploy.TIMESTAMP].endswith("Z")
 
 

@@ -51,6 +51,9 @@ jobs:
       - name: Check CLI and Lambdas with DynamoDB Local and MinIO
         run: make email-check
 
+      - name: Check guarded course-table reset with DynamoDB Local
+        run: make -C lambda-users-db ddb-empty-test
+
       - name: Check all maintained uv lockfiles
         run: make -C ../.. uv-check-all
 

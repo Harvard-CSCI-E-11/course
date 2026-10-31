@@ -5,6 +5,9 @@ Sessions Management
 # at top of home_app/home.py (module import time)
 import time
 import uuid
+from contextvars import ContextVar
+
+from botocore.exceptions import ClientError
 
 from e11.e11_common import (
     A,
@@ -21,7 +24,13 @@ from e11.e11core.utils import get_logger
 
 from .common import COOKIE_NAME, SESSION_TTL_SECS, get_cookie_domain
 
+SID = "sid"
+ERROR = "Error"
+CODE = "Code"
 LOGGER = get_logger("home")
+CURRENT_SESSION: ContextVar[Session | None] = ContextVar(
+    "current_session", default=None
+)
 
 # Auth Cookie
 
@@ -63,11 +72,15 @@ def new_session(event, claims) -> Session:
 
     send_welcome_email(user)
     sid = str(uuid.uuid4())
+    now = int(time.time())
     session = {
-        "sid": sid,
+        SID: sid,
         "email": email,
-        A.SESSION_CREATED: int(time.time()),
-        A.SESSION_EXPIRE: int(time.time() + SESSION_TTL_SECS),
+        A.SESSION_CREATED: now,
+        A.SESSION_EXPIRE: now + SESSION_TTL_SECS,
+        A.TTL: now + SESSION_TTL_SECS,
+        A.SESSION_LAST_AUTHENTICATED: now,
+        A.SESSION_COOKIE_SCOPE: COOKIE_NAME,
         "client_ip": client_ip,
         "claims": claims,
     }
@@ -92,10 +105,11 @@ def get_session_from_sid(event, sid) -> Session | None:
     )
     if not sid:
         return None
-    resp = sessions_table.get_item(Key={"sid": sid})
+    resp = sessions_table.get_item(Key={SID: sid}, ConsistentRead=True)
     LOGGER.debug("get_session sid=%s resp=%s", sid, resp)
     item = resp.get("Item")
-    if item is None:
+    if item is None or item.get(A.SESSION_COOKIE_SCOPE) != COOKIE_NAME:
+        # A new cookie name cannot make an old, potentially disclosed SID safe.
         return None
     ses = Session(**convert_dynamodb_item(item))
     now = int(time.time())
@@ -103,17 +117,25 @@ def get_session_from_sid(event, sid) -> Session | None:
         LOGGER.debug("get_session no ses")
         return None
     if ses.session_expire <= now:
-        # Session has expired. Delete it and return none
-        LOGGER.debug(
-            "Deleting expired sid=%s session_expire=%s now=%s",
-            sid,
-            ses.session_expire,
-            now,
-        )
-        sessions_table.delete_item(Key={"sid": sid})
-        add_user_log(event, "unknown", f"Session {sid} expired")
+        expire_batch(now, [item])
         return None
-    LOGGER.debug("get_session session=%s", ses)
+    # A conditional update cannot recreate a logged-out or concurrently expired session.
+    expiration = now + SESSION_TTL_SECS
+    try:
+        sessions_table.update_item(
+            Key={SID: sid},
+            UpdateExpression="SET session_expire = :expiration, #ttl = :expiration, "
+            "session_last_authenticated = :now",
+            ConditionExpression="attribute_exists(sid) AND session_expire > :now",
+            ExpressionAttributeNames={"#ttl": A.TTL},
+            ExpressionAttributeValues={":expiration": expiration, ":now": now},
+        )
+    except ClientError as error:
+        if error.response.get(ERROR, {}).get(CODE) != "ConditionalCheckFailedException":
+            raise
+        return None
+    ses.session_expire = expiration
+    CURRENT_SESSION.set(ses)
     return ses
 
 
@@ -136,7 +158,7 @@ def all_sessions_for_email(email):
 
 def delete_session(sid):
     LOGGER.info("delete_session sid=%s", sid)
-    return sessions_table.delete_item(Key={"sid": sid})
+    return sessions_table.delete_item(Key={SID: sid})
 
 
 def delete_session_from_event(event):
@@ -148,10 +170,23 @@ def delete_session_from_event(event):
 
 
 def expire_batch(now: int, items: list) -> int:
-    """Actually delete the items"""
-    n = 0
+    """Delete expired rows only if they have not been renewed since the scan."""
+    deleted = 0
     for item in items:
-        if item.get("session_expire", 0) <= now:
-            sessions_table.delete_item(Key={"sid": item["sid"]})
-            n += 1
-    return n
+        if int(item.get(A.SESSION_EXPIRE) or 0) > now:
+            continue
+        try:
+            sessions_table.delete_item(
+                Key={SID: item[SID]},
+                ConditionExpression="attribute_exists(sid) AND "
+                "(attribute_not_exists(session_expire) OR session_expire <= :now)",
+                ExpressionAttributeValues={":now": now},
+            )
+            deleted += 1
+        except ClientError as error:
+            if (
+                error.response.get(ERROR, {}).get(CODE)
+                != "ConditionalCheckFailedException"
+            ):
+                raise
+    return deleted

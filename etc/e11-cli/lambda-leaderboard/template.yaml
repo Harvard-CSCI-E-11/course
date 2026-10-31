@@ -82,6 +82,12 @@ Resources:
   HomeHttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
+      DefinitionBody:
+        openapi: '3.0.1'
+        info:
+          title: E11 Leaderboard API
+          version: '1.0'
+        paths: {}
       CorsConfiguration:
         AllowOrigins: ['*']
         AllowMethods: ['GET','POST','OPTIONS']
@@ -99,7 +105,7 @@ Resources:
       Runtime: python3.14
       CodeUri: src/
       Handler: leaderboard_app.leaderboard.lambda_handler
-      Timeout: 60
+      Timeout: 30
       MemorySize: 256
       Policies:
         - DynamoDBCrudPolicy:
@@ -129,6 +135,7 @@ Resources:
             Path: /
             Method: ANY
             PayloadFormatVersion: "2.0"
+            TimeoutInMillis: 30000
         AnyProxy:
           Type: HttpApi
           Properties:
@@ -136,6 +143,7 @@ Resources:
             Path: /{proxy+}
             Method: ANY
             PayloadFormatVersion: "2.0"
+            TimeoutInMillis: 30000
 
   # Define the DynamoDB table used to hold the Leaderboard
   # We index on the name. Each entry is a JSON object whose structure is determiend at runtime.

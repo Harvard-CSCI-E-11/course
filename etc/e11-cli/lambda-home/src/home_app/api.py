@@ -24,8 +24,8 @@ from e11.e11_common import (
     DNS_TTL,
     EMAIL_BODY,
     HOSTED_ZONE_ID,
+    IMAGE_BUCKET_NAME,
     LAB_TIMEZONE,
-    S3_BUCKET,
     A,
     EmailNotRegistered,
     add_grade,
@@ -494,7 +494,7 @@ def api_post_image(event, payload):
     """For lab 8 - validate the course key and give the user an upload S3. The image only gets added to the database if there is a successful upload."""
     user = validate_payload(payload)
     s3key = "images/" + str(uuid.uuid4()) + ".jpeg"
-    presigned_post = make_presigned_post(S3_BUCKET, s3key, user.email)
+    presigned_post = make_presigned_post(IMAGE_BUCKET_NAME, s3key, user.email)
     LOGGER.info(
         "event=%s payload=%s user=%s presigned_post=%s",
         event,

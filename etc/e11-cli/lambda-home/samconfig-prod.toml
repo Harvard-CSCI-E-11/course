@@ -15,7 +15,7 @@ image_repositories = []
 
 # --- Parameters ---
 LogLevel = "INFO"
-parameter_overrides = "EnvironmentName=\"prod\" UsersTableName=\"e11-users\" LeaderboardTableName=\"Leaderboard\" HostedZoneId=\"Z05034072HOMXYCK23BRA\" CertificateArn=\"\" OidcSecretId=\"arn:aws:secretsmanager:us-east-1:586794483136:secret:harvardkey-oidc-JGPzjb\" SshSecretId=\"arn:aws:secretsmanager:us-east-1:586794483136:secret:ssh-keys-EqRSxl\" SqsSecretId=\"arn:aws:secretsmanager:us-east-1:586794483136:secret:sqs-auth-secret-CkrRul\" LogLevel=\"INFO\""
+parameter_overrides = "ImageBucketName=\"csci-e-11\" EnvironmentName=\"prod\" UsersTableName=\"e11-users\" LeaderboardTableName=\"Leaderboard\" HostedZoneId=\"Z05034072HOMXYCK23BRA\" CertificateArn=\"\" OidcSecretId=\"arn:aws:secretsmanager:us-east-1:586794483136:secret:harvardkey-oidc-JGPzjb\" SshSecretId=\"arn:aws:secretsmanager:us-east-1:586794483136:secret:ssh-keys-EqRSxl\" SqsSecretId=\"arn:aws:secretsmanager:us-east-1:586794483136:secret:sqs-auth-secret-CkrRul\" LogLevel=\"INFO\""
 
 [default.global.parameters]
 region = "us-east-1"
