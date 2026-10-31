@@ -494,3 +494,22 @@ for visual inspection after validation.
 | `REQUIRE_EMAIL_SERVICES` | Makes missing archive-test service configuration an error |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | AWS credentials; email-check uses local test credentials |
 | `AWS_DEFAULT_REGION` | Boto3 region; email-check uses us-east-1 |
+
+### Empty course tables for rollover
+
+From `lambda-users-db/`, `make ddb-empty-plan` inventories the four course tables.
+`DDB_EMPTY=1 make ddb-empty` deletes every record, preserving the tables and their indexes.
+Both run `lambda-users-db/empty_course_tables.py` through `uv run --project ..
+--locked`, using the parent CLI project’s locked dependencies; deletion requires both its `--apply` option and the environment
+variable `DDB_EMPTY=1`. Other values or an unset variable reject deletion before
+AWS access. The utility pins the `fas`
+profile, AWS account `586794483136`, and `us-east-1` service endpoints rather than
+using environment-selected destinations. Stop production and staging writers
+and verify backups before deleting; see the end-of-course procedure. Each
+completed batch reports its table, batch number, deletion count, and running total.
+
+From `lambda-users-db/`, `make ddb-empty-test` exercises pagination, batch deletion, restart behavior, and
+preflight failure against DynamoDB Local. `DDB_EMPTY_TEST_PORT` optionally selects
+its local test port (default 18001). The target supplies dummy
+`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION` values and
+sets `AWS_ENDPOINT_URL_DYNAMODB` to the local server; it does not use live AWS.

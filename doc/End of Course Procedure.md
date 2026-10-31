@@ -152,7 +152,6 @@ The summary counts record sets selected for deletion and those kept in the expor
 
 ## 5. Delete the domains
 
-
 ```console
 make dns-delete
 ```
@@ -171,6 +170,45 @@ planned records should be absent and kept records unchanged. Test the sites in
 step 7.
 
 ## 6. Reset course data
+
+### Clear DynamoDB records
+
+After verifying the step-2 backup and restore drill, keep **both production and
+staging writes stopped**, including scheduled and queued jobs. They share
+`e11-users` and `Leaderboard`; their session tables are separate. The following
+command deletes every record from all four tables, including users, grades,
+email indexes, logs, leaderboard entries, and sessions. It preserves the tables,
+indexes, and configuration. Deleting sessions logs everyone out.
+
+The AWS CLI has no single operation to empty a DynamoDB table while retaining
+its schema. Use the Python utility in
+`etc/e11-cli/lambda-users-db/empty_course_tables.py`, run through `uv`.
+From `etc/e11-cli/lambda-users-db`, first review the account, region, and live record counts:
+
+```console
+make ddb-empty-plan
+```
+
+After authorizing the reset, delete all records with one command:
+
+```console
+DDB_EMPTY=1 make ddb-empty
+```
+
+Both Make targets run `uv run --project .. --locked python empty_course_tables.py`;
+the deletion target adds `--apply`. Both the target and the utility require the
+environment variable `DDB_EMPTY=1` before allowing deletion. The utility pins
+profile `fas`, account
+`586794483136`, and region `us-east-1`. It preflights all four tables, reads all
+scan pages, retries unprocessed batch deletions, prints progress after each
+completed batch of up to 25 records, and verifies fresh counts.
+
+Save the output in the rollover record. A failure can leave a partial reset;
+keep writes stopped and rerun after resolving it. Do not reopen writes until all
+four counts are zero and the S3 reset below is complete. Logging in afterward
+creates new user/session records; subsequent nonzero counts are expected.
+
+### Empty S3
 
 Before emptying S3, preserve the `email/` prefix in the secure rollover backup
 and verify the copied object count and contents. The DynamoDB backup contains
