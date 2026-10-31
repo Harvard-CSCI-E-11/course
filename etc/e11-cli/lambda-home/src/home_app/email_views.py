@@ -87,7 +87,11 @@ def _message_page(user, timestamp, session, env):
     return _response(
         200,
         env.get_template("email_message.html").render(
-            ses=session, email=record, message_body=body, message_date=message_date
+            ses=session,
+            email=record,
+            message_body=body,
+            message_date=message_date,
+            sender_email=e11_common.SES_VERIFIED_EMAIL,
         ),
     )
 

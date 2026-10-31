@@ -227,12 +227,19 @@ def test_archive_time_collision_preserves_both_messages(mail_services, monkeypat
     assert len({row.key for row in rows}) == 2
 
 
-def test_archive_failure_prevents_ses_and_welcome_retries(mail_services):
+def test_archive_failure_prevents_ses_and_welcome_retries(mail_services, caplog):
     mail_services.s3.delete_bucket(Bucket=archive.EMAIL_BUCKET)
     user = common.create_new_user(f"retry-{uuid.uuid4().hex}@example.org")
     assert not mail_services.submitted
     assert common.get_user_from_user_id(user.user_id).welcome_status == "retryable"
     assert email_rows(user)[0].status == "archive_failed"
+    failure = next(
+        record
+        for record in caplog.records
+        if "Welcome email failed" in record.getMessage()
+    )
+    assert failure.exc_info is None
+    assert "NoSuchBucket" in failure.getMessage()
     mail_services.s3.create_bucket(Bucket=archive.EMAIL_BUCKET)
     mail_services.accept()
     login(user)
@@ -256,7 +263,7 @@ def test_missing_index_prevents_ses_and_s3(mail_services, dynamodb_local):
     assert not mail_services.submitted
 
 
-def test_unknown_welcome_submission_is_not_retried(mail_services):
+def test_unknown_welcome_submission_is_not_retried(mail_services, caplog):
     mail_services.stubber.add_client_error(
         "send_raw_email",
         service_error_code="InternalFailure",
@@ -267,6 +274,13 @@ def test_unknown_welcome_submission_is_not_retried(mail_services):
     login(user)
     assert common.get_user_from_user_id(user.user_id).welcome_status == "unknown"
     assert email_rows(user)[0].status == "unknown"
+    failure = next(
+        record
+        for record in caplog.records
+        if "Welcome email submission uncertain" in record.getMessage()
+    )
+    assert failure.exc_info is None
+    assert "not retrying automatically" in failure.getMessage()
     assert len(mail_services.submitted) == 1
 
 
@@ -287,7 +301,8 @@ def test_rejected_submission_remains_archived(mail_services):
     ].read()
 
 
-def test_email_list_and_new_tab_message_escape_content(mail_services):
+def test_email_list_and_new_tab_message_escape_content(mail_services, monkeypatch):
+    monkeypatch.setattr(common, "SES_VERIFIED_EMAIL", "archive-sender@example.org")
     mail_services.accept(2)
     user = common.create_new_user(f"view-{uuid.uuid4().hex}@example.org")
     common.send_email2(
@@ -310,6 +325,7 @@ def test_email_list_and_new_tab_message_escape_content(mail_services):
     event[QUERY] = {"timestamp": row.timestamp}
     response = home.lambda_handler(event, None)
     assert response[email_views.STATUS_CODE] == 200
+    assert f"From: {common.SES_VERIFIED_EMAIL}\n" in response[email_views.BODY]
     assert "Hello &lt;script&gt;alert(1)&lt;/script&gt; ✓" in response[email_views.BODY]
     assert "<script>alert(1)</script>" not in response[email_views.BODY]
     assert response[email_views.HEADERS]["Cache-Control"] == "private, no-store"

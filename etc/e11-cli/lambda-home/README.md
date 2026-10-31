@@ -37,7 +37,8 @@ Subjects open `/email/message?timestamp=...` in another tab. Both routes enforce
 the existing session and user ownership, serve private non-cacheable responses,
 and display escaped plain-text MIME content. The message’s `Date:` line uses the
 archived MIME header with its original timezone; the separate Time field uses
-the archive index timestamp. Missing Date headers show `(not provided)`.
+the archive index timestamp. Missing Date headers show `(not provided)`. The From line uses the shared
+`SES_VERIFIED_EMAIL` sender constant used for outgoing mail.
 See the parent CLI README for
 archive storage, welcome behavior, and `make email-check` service configuration.
 

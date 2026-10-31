@@ -650,10 +650,11 @@ def send_welcome_email(user: User):
                     user_id=user.user_id)
     except EmailSubmissionUnknown:
         status = "unknown"
-        get_logger().exception("Welcome email submission uncertain for user_id=%s", user.user_id)
-    except (BotoCoreError, ClientError):
+        get_logger().error("Welcome email submission uncertain for user_id=%s; not retrying automatically", user.user_id)
+    except (BotoCoreError, ClientError) as exc:
         status = "retryable"
-        get_logger().exception("Welcome email failed for user_id=%s", user.user_id)
+        code = exc.response.get(ERROR, {}).get(CODE, type(exc).__name__) if isinstance(exc, ClientError) else type(exc).__name__
+        get_logger().error("Welcome email failed for user_id=%s (%s)", user.user_id, code)
     try:
         users_table.update_item(
             Key={A.USER_ID: user.user_id, A.SK: A.SK_USER},
