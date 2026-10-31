@@ -89,7 +89,7 @@
     <tr>
       <td class="date">{{ log.datetime }}</td>
       <td class="client_ip">{{ log.client_ip }}</td>
-      <td class="message">{{ log.message }}{% if log.get('claims') %} <button type="button" class="show-claims-btn" data-claims="{{ (log.get('claims') | tojson) | e }}">Show claims</button>{% endif %}</td>
+      <td class="message">{{ log.message }}{% if log.get('claims') %} <button type="button" class="show-claims-btn" data-claims="{{ (log.get('claims') | tojson) | forceescape }}">Show claims</button>{% endif %}</td>
     </tr>
     {% endfor %}
   </tbody>
@@ -154,7 +154,7 @@ document.addEventListener("DOMContentLoaded", () => {
    // Countdown timer for next lab deadline
    {% if next_lab and next_deadline %}
    (function updateCountdown() {
-     const deadline = new Date("{{ next_deadline }}");
+     const deadline = new Date({{ next_deadline | tojson }});
      const now = new Date();
      const diff = deadline - now;
 
@@ -215,7 +215,7 @@ document.addEventListener("DOMContentLoaded", () => {
        const key = btn.dataset.key;
        console.log("user_id=",user_id,"bucket=",bucket,"sk=",sk,"key=",key);
        try {
-         const resp = await fetch("{{ API_PATH }}", {
+         const resp = await fetch({{ API_PATH | tojson }}, {
            method: "POST",
            headers: { "Content-Type": "application/json" },
            body: JSON.stringify({ action: "delete-image", user_id:user_id, bucket:bucket, sk:sk, key:key
@@ -243,7 +243,7 @@ document.addEventListener("DOMContentLoaded", () => {
      btn.addEventListener("click", async (event) => {
        const sid = btn.dataset.sid;
        try {
-         const resp = await fetch("{{ API_PATH }}", {
+         const resp = await fetch({{ API_PATH | tojson }}, {
            method: "POST",
            headers: { "Content-Type": "application/json" },
            body: JSON.stringify({ action: "delete-session", sid: sid
@@ -298,14 +298,14 @@ document.addEventListener("DOMContentLoaded", () => {
        btn.textContent = "Checking...";
        const sid = btn.dataset.sid;
        try {
-         const resp = await fetch("{{ API_PATH }}", {
+         const resp = await fetch({{ API_PATH | tojson }}, {
            method: "POST",
            headers: { "Content-Type": "application/json" },
            body: JSON.stringify({
              action: "check-access",
              auth: {
-               email: "{{ user.email }}",
-               course_key: "{{ user.course_key }}" }
+               email: {{ user.email | tojson }},
+               course_key: {{ user.course_key | tojson }} }
            })
          });
 

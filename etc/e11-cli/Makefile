@@ -2,6 +2,8 @@
 #
 # The e11 module runs on Python 3.14 on student machines and AWS Lambda.
 # COURSE_ROOT optionally overrides the local student checkout (default ~/course).
+# LOG_LEVEL selects application logging; boto3/botocore DEBUG stays suppressed.
+# STAGE_NAME and DEPLOYMENT_TIMESTAMP label the public runtime version report.
 
 # DynamoDB local stuff (see end)
 DYNAMODB_LOCAL_ENDPOINT=http://localhost:8000/
@@ -36,12 +38,18 @@ lint-all:
 
 check: .venv/pyvenv.cfg
 	make lint
-	uv run --locked pytest -q --cov=e11 --cov-report=term --cov-report=xml --junitxml=junit.xml -o junit_family=legacy tests/
+	uv run --locked pytest -q --cov=e11 --cov-report=term --cov-report=xml --junitxml=junit.xml -o junit_family=legacy --log-cli-level=INFO tests/
 
 check-all:
 	make check
 	(cd lambda-home; make check)
 	(cd lambda-leaderboard; make check)
+
+# Record public Git/build provenance in package data before producing a Lambda wheel.
+.PHONY: wheel
+wheel: .venv/pyvenv.cfg
+	uv run --locked python -m e11.e11admin.build_info
+	uv build --wheel --out-dir dist
 
 bin/minio:
 	GOBIN="$(CURDIR)/bin" go install $(MINIO_SOURCE)

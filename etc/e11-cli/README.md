@@ -349,6 +349,31 @@ The package defines two CLI entry points in `pyproject.toml`:
 * `e11` - Main student CLI command
 * `e11admin` - Staff administration CLI command
 
+## Logging
+
+`make check` streams test logs at INFO in the CLI and both Lambda projects.
+`LOG_LEVEL` selects application logging (default INFO; DEBUG for diagnostics).
+The shared package keeps `boto3` and `botocore` at INFO even when application or
+root logging is DEBUG, preserving SDK informational messages, warnings and errors.
+
+## Version and build diagnostics
+
+`/ver` and `/version` return the same plain-text, non-cacheable report on each
+dashboard host. The report includes the release, Git checkout/ref and full commit,
+dirty working-tree marker, Python version, architecture, environment, and UTC
+build/deployment timestamps. Production and staging report their own deployments.
+The existing POST `version` API retains its version/deployment fields for the CLI.
+
+Both Lambda Makefiles call `make wheel`, which stamps public Git/build provenance
+into ignored `e11/_build_info.json` before packaging. Lambda reads this artifact;
+it does not need Git or a checkout at runtime. Builds outside a Git repository
+report unknown Git fields. No secrets, arbitrary environment values or local paths
+are included. `make lambda-build-check` verifies both aliases and embedded commit
+in the actual Linux arm64 bundles.
+
+`STAGE_NAME` identifies the deployed environment; `DEPLOYMENT_TIMESTAMP` is supplied
+by the SAM deployment wrapper. `LOG_LEVEL` controls application logging separately.
+
 ## Spring 2027 deadlines and late grades
 
 All deadlines are **12:00 noon America/New_York** on these Mondays:
@@ -469,3 +494,22 @@ for visual inspection after validation.
 | `REQUIRE_EMAIL_SERVICES` | Makes missing archive-test service configuration an error |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | AWS credentials; email-check uses local test credentials |
 | `AWS_DEFAULT_REGION` | Boto3 region; email-check uses us-east-1 |
+
+### Empty course tables for rollover
+
+From `lambda-users-db/`, `make ddb-empty-plan` inventories the four course tables.
+`DDB_EMPTY=1 make ddb-empty` deletes every record, preserving the tables and their indexes.
+Both run `lambda-users-db/empty_course_tables.py` through `uv run --project ..
+--locked`, using the parent CLI project’s locked dependencies; deletion requires both its `--apply` option and the environment
+variable `DDB_EMPTY=1`. Other values or an unset variable reject deletion before
+AWS access. The utility pins the `fas`
+profile, AWS account `586794483136`, and `us-east-1` service endpoints rather than
+using environment-selected destinations. Stop production and staging writers
+and verify backups before deleting; see the end-of-course procedure. Each
+completed batch reports its table, batch number, deletion count, and running total.
+
+From `lambda-users-db/`, `make ddb-empty-test` exercises pagination, batch deletion, restart behavior, and
+preflight failure against DynamoDB Local. `DDB_EMPTY_TEST_PORT` optionally selects
+its local test port (default 18001). The target supplies dummy
+`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION` values and
+sets `AWS_ENDPOINT_URL_DYNAMODB` to the local server; it does not use live AWS.

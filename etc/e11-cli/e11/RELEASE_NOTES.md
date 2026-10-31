@@ -1,5 +1,30 @@
 # Release notes
 
+## 2026-10-31: Dashboard and session security
+
+- Confine authentication cookies to each issuing host with `__Host-AuthSid`;
+  require fresh login for pre-change SIDs and clear legacy cookies.
+- Escape dashboard/404 HTML, JSON attributes, and script data by context.
+- Renew authenticated sessions and DynamoDB TTL for 120 days; repair scheduled
+  cleanup and protect renewed sessions from stale sweeps.
+- Explicitly share the course image bucket between production and staging.
+- Set both Lambdas, their HTTP integrations, and CLI grading defaults to 30 seconds.
+- Keep the local security follow-up inventory out of Git.
+
+## 1.1.0a1 — 2026-10-30: Public build and runtime diagnostics
+
+- Make `/ver` and `/version` identical aliases with plain-text, no-store responses.
+- Report the packaged Git checkout/commit and dirty marker, Python version,
+  architecture, environment and build/deployment timestamps without exposing secrets.
+- Stamp provenance before each Lambda wheel build and align CLI/Lambda project
+  and runtime versions at 1.1.0a1. Native bundle checks exercise both aliases.
+
+## 2026-10-30: Quieter test and AWS SDK logging
+
+- Run CLI and Lambda `make check` targets with INFO live logging.
+- Suppress boto3/botocore DEBUG messages in shared package initialization while
+  retaining SDK INFO/warnings/errors and independently configured application logs.
+
 ## 2026-10-30: Lab document redirects
 
 - Point `/lab0` through `/lab8` to their `doc/Lab_N.md` files on GitHub main

@@ -30,12 +30,11 @@ from .e11core.utils import get_logger,smash_email
 from .e11core import grader
 
 from .doctor import run_doctor
+from .version import __version__
 
 
 # because of our argument processing, args is typically given and frequently not used.
 # pylint: disable=unused-argument, disable=invalid-name
-
-__version__ = '1.0.1'
 
 logger = get_logger()
 
@@ -128,7 +127,7 @@ def do_access_check_dashboard(args):
     cp = get_config()
     r = requests.post(ep, json={'action':'check-access',
                                 'auth':{STUDENT_EMAIL:cp[STUDENT][STUDENT_EMAIL], COURSE_KEY:cp[STUDENT][COURSE_KEY]}},
-                      timeout = GRADING_TIMEOUT+5 )
+                      timeout = GRADING_TIMEOUT )
     if r.ok:
         print(f"Response from dashboard: {r.json()['message']}")
     else:
@@ -138,7 +137,7 @@ def do_access_check_me(args):
     fix_access_permissions()
     print("Checking dashboard to see if it has access for this public IP address")
     ep = endpoint(args)
-    r = requests.post(ep, json={'action':'check-me'}, timeout = GRADING_TIMEOUT+5 )
+    r = requests.post(ep, json={'action':'check-me'}, timeout = GRADING_TIMEOUT )
     if r.ok:
         print(f"Message from dashboard: {r.json()['message']}")
         print("Full response:\n",json.dumps(r.json(),indent=4))
@@ -425,8 +424,8 @@ def do_check(args):
         if not hasattr(grade_args, "identity"):
             grade_args.identity = None
         if not hasattr(grade_args, "timeout"):
-            # Match the default used by the `grade` command parser (GRADING_TIMEOUT + 5)
-            grade_args.timeout = GRADING_TIMEOUT + 5
+            # Match the default used by the `grade` command parser (GRADING_TIMEOUT)
+            grade_args.timeout = GRADING_TIMEOUT
         return do_grade(grade_args)
     return 0
 
@@ -645,7 +644,7 @@ def get_parser():
     grade_parser.add_argument('--verbose', help='print all details',action='store_true')
     grade_parser.add_argument('--direct', help='Instead of grading [student]public_ip from server, grade from this system. Requires SSH access to target')
     grade_parser.add_argument('-i','--identity','--pkey_pem', help='Specify public key to use for direct grading')
-    grade_parser.add_argument("--timeout", type=int, default=GRADING_TIMEOUT+5)
+    grade_parser.add_argument("--timeout", type=int, default=GRADING_TIMEOUT)
     grade_parser.set_defaults(func=do_grade)
 
     # e11 check [lab]
@@ -661,7 +660,7 @@ def get_parser():
     # e11 lab8
     lab8_parser = subparsers.add_parser('lab8', help='Lab8 commands', parents=[shared_parser])
     lab8_parser.add_argument("--upload", help="File to upload", type=Path)
-    lab8_parser.add_argument("--timeout", type=int, default=GRADING_TIMEOUT+5)
+    lab8_parser.add_argument("--timeout", type=int, default=GRADING_TIMEOUT)
     lab8_parser.set_defaults(func=do_lab8)
 
     return parser

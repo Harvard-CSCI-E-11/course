@@ -3,6 +3,8 @@
 # Container builds produce Linux arm64 dependencies rather than workstation wheels.
 # Deployments preserve TOML overrides and add a UTC release timestamp.
 # AWS_PROFILE/AWS_REGION select the account credentials and region for log retention.
+# LOG_LEVEL selects application logging; boto3/botocore DEBUG stays suppressed.
+# STAGE_NAME and DEPLOYMENT_TIMESTAMP label the deployed version report.
 AWS_PROFILE ?= fas
 AWS_REGION ?= us-east-1
 
@@ -14,7 +16,7 @@ validate:
 	sam validate --config-file samconfig-prod.toml -t template.yaml --lint
 
 check: install vend-e11
-	uv run --locked pytest --log-cli-level=DEBUG
+	uv run --locked pytest --log-cli-level=INFO
 
 lint: install vend-e11 validate
 	PYTHONPATH=src uv run --locked pylint leaderboard_app
@@ -59,7 +61,7 @@ list-cloud-resources:
 .PHONY: vend-e11
 vend-e11: install
 	@echo "Building the shared e11 wheel via uv"
-	( cd .. && uv build --wheel --out-dir dist )
+	$(MAKE) -C .. wheel
 	uv pip install --no-deps --reinstall --target src "$$(ls -t ../dist/e11-*.whl | head -1)"
 	/bin/rm -f src/leaderboard_app/e11.whl
 

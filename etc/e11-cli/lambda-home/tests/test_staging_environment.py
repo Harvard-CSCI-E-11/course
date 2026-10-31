@@ -7,7 +7,6 @@ import json
 import pytest
 
 from e11 import e11_common
-from e11.e11core.constants import COURSE_DOMAIN
 from home_app import common, home, oidc
 
 
@@ -30,13 +29,13 @@ def test_is_staging_environment():
 def test_get_cookie_domain():
     """Test cookie domain selection based on environment"""
 
-    # Production should use configured domain
+    # Production is confined to its exact issuing host
     prod_event = {"requestContext": {"stage": "prod"}}
-    assert home.get_cookie_domain(prod_event) == COURSE_DOMAIN
+    assert home.get_cookie_domain(prod_event) is None
 
-    # Staging should use production domain for session sharing
+    # Staging has its own host-only cookie
     stage_event = {"requestContext": {"stage": "stage"}}
-    assert home.get_cookie_domain(stage_event) == COURSE_DOMAIN
+    assert home.get_cookie_domain(stage_event) is None
 
 
 def test_make_cookie_with_dynamic_domain():
@@ -47,14 +46,14 @@ def test_make_cookie_with_dynamic_domain():
     cookie = common.make_cookie(
         "test", "value", domain=home.get_cookie_domain(prod_event)
     )
-    assert f"Domain={COURSE_DOMAIN}" in cookie
+    assert "Domain=" not in cookie
 
-    # Test staging cookie (should use same domain)
+    # Test staging cookie (also host-only)
     stage_event = {"requestContext": {"stage": "stage"}}
     cookie = common.make_cookie(
         "test", "value", domain=home.get_cookie_domain(stage_event)
     )
-    assert f"Domain={COURSE_DOMAIN}" in cookie
+    assert "Domain=" not in cookie
 
 
 def test_environment_detection_integration():
@@ -73,7 +72,7 @@ def test_environment_detection_integration():
     }
 
     assert common.is_staging_environment(stage_event)
-    assert home.get_cookie_domain(stage_event) == COURSE_DOMAIN
+    assert home.get_cookie_domain(stage_event) is None
 
     # Simulate a real API Gateway event for production
     prod_event = {
@@ -88,7 +87,7 @@ def test_environment_detection_integration():
     }
 
     assert not common.is_staging_environment(prod_event)
-    assert home.get_cookie_domain(prod_event) == COURSE_DOMAIN
+    assert home.get_cookie_domain(prod_event) is None
 
 
 def test_get_public_host_prefers_configured_domain(monkeypatch):

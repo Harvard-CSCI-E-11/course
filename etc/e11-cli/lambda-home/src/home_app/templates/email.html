@@ -7,8 +7,8 @@
 {% block title %}Email — CSCI E-11{% endblock title %}
 {% block content %}
 <h2>Email</h2>
-<p>Email sent to you by CSCI E-11. All times are Eastern Time.</p>
 {% if emails %}
+<p>Email sent to you by CSCI E-11. All times are Eastern Time.</p>
 <table class="pure-table">
   <thead><tr><th>Time</th><th>Subject</th><th>Submission status</th></tr></thead>
   <tbody>
@@ -23,6 +23,6 @@
 </table>
 <p>Accepted means SES accepted the message for sending; it does not confirm delivery.</p>
 {% else %}
-<p>No email has been archived for your account yet.</p>
+<p>No email has been archived for your account.</p>
 {% endif %}
 {% endblock content %}

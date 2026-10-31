@@ -129,7 +129,7 @@ SIX_MONTHS = 60 * 60 * 24 * 180  # 180 days in seconds
 # DynamoDB config
 USERS_TABLE_NAME    = os.environ.get("USERS_TABLE_NAME","e11-users")
 SESSIONS_TABLE_NAME = os.environ.get("SESSIONS_TABLE_NAME","home-app-sessions")
-IMAGE_BUCKET_NAME   = S3_BUCKET
+IMAGE_BUCKET_NAME   = os.environ.get("IMAGE_BUCKET_NAME", S3_BUCKET)
 
 # DynamoDB
 dynamodb_client : DynamoDBClient = boto3.client("dynamodb", region_name=AWS_REGION)
@@ -179,6 +179,9 @@ class A:                        # pylint: disable=too-few-public-methods
     REQUEST_TIME_EPOCH = 'timeEpoch'
     SESSION_CREATED = 'session_created'  # time_t
     SESSION_EXPIRE = 'session_expire'    # time_t
+    SESSION_LAST_AUTHENTICATED = 'session_last_authenticated'
+    SESSION_COOKIE_SCOPE = 'session_cookie_scope'
+    TTL = 'ttl'                         # DynamoDB TTL Unix seconds
     KEY = 'key'                          # typically for S3
     SK = 'sk'                   # sort key
     SK_GRADE_PREFIX = 'grade#'         # sort key prefix for log entries
@@ -583,7 +586,7 @@ def get_images(user_id):
 
 def delete_image(user_id, sk, bucket, key):
     if (not isinstance(sk, str) or not sk.startswith(A.SK_IMAGE_PREFIX)
-            or bucket != S3_BUCKET or not isinstance(key, str) or not key.startswith("images/")):
+            or bucket != IMAGE_BUCKET_NAME or not isinstance(key, str) or not key.startswith("images/")):
         raise ValueError("Deletion is restricted to course image records and objects")
     get_logger().info("delete_image user=%s sk=%s bucket=%s key=%s", user_id, sk, bucket, key)
     r1 = users_table.delete_item(Key={A.USER_ID:user_id, A.SK:sk})

@@ -7,16 +7,14 @@ import sys
 from os.path import dirname, isdir, join
 
 from e11 import e11_common
-from e11.e11core.constants import COURSE_DOMAIN
 
 users_table = e11_common.users_table
 
-SESSION_TTL_SECS = int(
-    os.environ.get("SESSION_TTL_SECS", str(e11_common.SIX_MONTHS))
-)  # 180 days
-COOKIE_NAME = os.environ.get("COOKIE_NAME", "AuthSid")
+# Authentication cookies are host-only; the prefix also blocks subdomain injection.
+SESSION_TTL_SECS = 120 * 24 * 60 * 60
+COOKIE_NAME = "__Host-AuthSid"
+LEGACY_COOKIE_NAME = "AuthSid"
 COOKIE_SECURE = True
-COOKIE_DOMAIN = os.environ.get("COOKIE_DOMAIN", COURSE_DOMAIN)
 COOKIE_SAMESITE = os.environ.get("COOKIE_SAMESITE", "Lax")  # Lax|Strict|None
 
 # fix the path. Don't know why this is necessary
@@ -49,7 +47,7 @@ def make_cookie(
 ) -> str:
     """create a cookie for Lambda"""
     parts = [f"{name}={'' if clear else value}"]
-    if domain:
+    if domain and not name.startswith("__Host-"):
         parts.append(f"Domain={domain}")
     parts.append("Path=/")
     if COOKIE_SECURE:
@@ -64,13 +62,9 @@ def make_cookie(
     return "; ".join(parts)
 
 
-def get_cookie_domain(event) -> str:
-    """Get the appropriate cookie domain based on the environment"""
-    if is_staging_environment(event):
-        # In staging, always use the production domain for cookies
-        # so sessions work across both environments
-        return COURSE_DOMAIN
-    return COOKIE_DOMAIN
+def get_cookie_domain(_event) -> None:
+    """Omit Domain so the browser confines cookies to the exact issuing host."""
+    return
 
 
 def get_request_host(event) -> str | None:

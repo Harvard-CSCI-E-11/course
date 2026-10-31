@@ -15,6 +15,7 @@ import tempfile
 from pathlib import Path
 
 from pydantic import BaseModel, Field
+from e11.version import BUILD_INFO_FILE, BuildInfo, __version__
 
 VERSION = "version"
 ROUTE_KEY = "routeKey"
@@ -38,7 +39,6 @@ class ArtifactCheck(BaseModel):
 
     app: str
     function: str
-    path: str
     body_prefix: str
 
 
@@ -63,8 +63,9 @@ def parse_response(output: str) -> VersionResponse:
 
 
 def main():
-    checks = [ArtifactCheck(app="lambda-home", function="E11HomeFunction", path="/version", body_prefix="version:"),
-              ArtifactCheck(app="lambda-leaderboard", function="LeaderboardFlaskFunction", path="/ver", body_prefix="1.")]
+    checks = [ArtifactCheck(app="lambda-home", function="E11HomeFunction", body_prefix=f"version: {__version__}\n"),
+              ArtifactCheck(app="lambda-leaderboard", function="LeaderboardFlaskFunction", body_prefix=f"version: {__version__}\n")]
+    build = BuildInfo.model_validate_json(BUILD_INFO_FILE.read_text())
     root = Path(__file__).resolve().parents[2]
     env = dict(os.environ)
     for name in ("AWS_PROFILE", "AWS_DEFAULT_PROFILE", "AWS_SESSION_TOKEN"):
@@ -74,18 +75,23 @@ def main():
     with tempfile.TemporaryDirectory(prefix="e11-lambda-smoke-") as temporary:
         directory = Path(temporary)
         for check in checks:
-            event = {VERSION: "2.0", ROUTE_KEY: "ANY /{proxy+}", RAW_PATH: check.path, RAW_QUERY_STRING: "", HEADERS: {HOST: "localhost"},
-                     REQUEST_CONTEXT: {STAGE: "$default", HTTP: {METHOD: "GET", PATH: check.path, SOURCE_IP: "127.0.0.1", PROTOCOL: "HTTP/1.1"}}}
-            event_file = directory / "event.json"
-            event_file.write_text(json.dumps(event))
-            log_file = root / check.app / ".aws-sam" / "smoke.log"
-            result = subprocess.run(["sam", "local", "invoke", check.function, "--template", ".aws-sam/build/template.yaml",
-                                     "--event", str(event_file), "--log-file", str(log_file)],
-                                    cwd=root / check.app, env=env, capture_output=True, text=True, check=True)
-            response = parse_response(log_file.read_text() + "\n" + result.stdout)
-            if response.status_code != 200 or not response.body.startswith(check.body_prefix):
-                raise RuntimeError(f"Bundled handler smoke check failed: {check.app}")
-            print(f"{check.app}: Linux arm64 handler imported and version route returned HTTP 200")
+            first_body = None
+            for path in ("/ver", "/version"):
+                event = {VERSION: "2.0", ROUTE_KEY: "ANY /{proxy+}", RAW_PATH: path, RAW_QUERY_STRING: "", HEADERS: {HOST: "localhost"},
+                         REQUEST_CONTEXT: {STAGE: "$default", HTTP: {METHOD: "GET", PATH: path, SOURCE_IP: "127.0.0.1", PROTOCOL: "HTTP/1.1"}}}
+                event_file = directory / "event.json"
+                event_file.write_text(json.dumps(event))
+                log_file = root / check.app / ".aws-sam" / "smoke.log"
+                result = subprocess.run(["sam", "local", "invoke", check.function, "--template", ".aws-sam/build/template.yaml",
+                                         "--event", str(event_file), "--log-file", str(log_file)],
+                                        cwd=root / check.app, env=env, capture_output=True, text=True, check=True)
+                response = parse_response(log_file.read_text() + "\n" + result.stdout)
+                if (response.status_code != 200 or not response.body.startswith(check.body_prefix)
+                        or f"git commit: {build.git_commit}\n" not in response.body
+                        or (first_body is not None and response.body != first_body)):
+                    raise RuntimeError(f"Bundled version alias/provenance check failed: {check.app} {path}")
+                first_body = response.body
+            print(f"{check.app}: Linux arm64 /ver and /version returned identical HTTP 200 build/runtime reports")
 
 
 if __name__ == "__main__":

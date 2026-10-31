@@ -20,6 +20,7 @@ import pytest
 from e11.e11_common import LAB_CONFIG, LAB_REDIRECTS
 from e11.e11core.constants import HTTP_OK
 from home_app import api, home
+from home_app.common import COOKIE_NAME
 
 
 def test_lab_config_structure():
@@ -160,7 +161,7 @@ def test_do_dashboard_computes_next_lab(monkeypatch, fake_aws, dynamodb_local):
             "stage": "test",
         },
         "rawPath": "/dashboard",
-        "cookies": [f"AuthSid={ses.sid}"],
+        "cookies": [f"{COOKIE_NAME}={ses.sid}"],
     }
 
     # Mock time to be before lab0 deadline
@@ -240,7 +241,7 @@ def test_do_dashboard_no_next_lab_when_all_past(monkeypatch, fake_aws, dynamodb_
             "stage": "test",
         },
         "rawPath": "/dashboard",
-        "cookies": [f"AuthSid={ses.sid}"],
+        "cookies": [f"{COOKIE_NAME}={ses.sid}"],
     }
 
     # Mock time to be after all lab deadlines

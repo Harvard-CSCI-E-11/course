@@ -128,6 +128,12 @@ Resources:
     Type: AWS::Serverless::HttpApi
     Properties:
       StageName: !FindInMap [EnvConfig, !Ref EnvironmentName, StageName]
+      DefinitionBody:
+        openapi: '3.0.1'
+        info:
+          title: E11 Home API
+          version: '1.0'
+        paths: {}
       CorsConfiguration:
         AllowOrigins: ['*']
         AllowMethods: ['GET','POST','OPTIONS']
@@ -198,7 +204,7 @@ Resources:
       Runtime: python3.14
       CodeUri: src/
       Handler: home_app.home.lambda_handler
-      Timeout: 60
+      Timeout: 30
       MemorySize: 1024
       Policies:
         - DynamoDBCrudPolicy:
@@ -271,6 +277,7 @@ Resources:
             Path: /
             Method: ANY
             PayloadFormatVersion: "2.0"
+            TimeoutInMillis: 30000
         AnyProxy:
           Type: HttpApi
           Properties:
@@ -278,6 +285,7 @@ Resources:
             Path: /{proxy+}
             Method: ANY
             PayloadFormatVersion: "2.0"
+            TimeoutInMillis: 30000
         Heartbeat:
           Type: Schedule
           Properties:
@@ -352,7 +360,7 @@ Resources:
     UpdateReplacePolicy: Delete
     Properties:
       QueueName: !Sub "${AWS::StackName}-home-queue"
-      VisibilityTimeout: 75            # must be > Lambda Timeout (60s)
+      VisibilityTimeout: 75            # exceeds Lambda Timeout (30s)
       MessageRetentionPeriod: 3600     # 1 hour
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt HomeQueueDeadLetterQueue.Arn

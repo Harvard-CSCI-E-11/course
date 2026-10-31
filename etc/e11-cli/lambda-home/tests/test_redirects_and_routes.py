@@ -49,19 +49,22 @@ def test_lab_redirects_return_valid_redirects():
         )
 
 
-def test_version_endpoint():
-    """Test that /version endpoint returns valid version information"""
-    event = create_lambda_event("/version", method="GET")
-    response = home.lambda_handler(event, None)
-
-    assert response["statusCode"] == 200, (
-        f"/version should return 200, got {response['statusCode']}"
-    )
-    assert "version" in response["body"].lower(), (
-        "/version response should contain version information"
-    )
-    # Version endpoint returns: "version: {__version__} of {DEPLOYMENT_TIMESTAMP}\n"
-    assert "version:" in response["body"], "/version response should contain 'version:'"
+@pytest.mark.parametrize("environment", ["prod", "stage"])
+def test_version_endpoint(environment, monkeypatch):
+    """Both aliases expose the same safe build/runtime report in either stack."""
+    monkeypatch.setenv("STAGE_NAME", environment)
+    monkeypatch.setenv("DEPLOYMENT_TIMESTAMP", "2026-10-30T12:00:00Z")
+    responses = [home.lambda_handler(create_lambda_event(path, method="GET"), None)
+                 for path in ("/ver", "/version")]
+    assert responses[0] == responses[1]
+    response = responses[0]
+    assert response["statusCode"] == 200
+    assert response["headers"]["Content-Type"] == "text/plain; charset=utf-8"
+    assert response["headers"]["Cache-Control"] == "no-store"
+    assert response["body"].startswith("version: 1.1.0a1\n")
+    assert f"environment: {environment}\n" in response["body"]
+    for label in ("git checkout:", "git commit:", "python:", "architecture:", "built:", "deployed:"):
+        assert label in response["body"]
 
 
 def test_heartbeat_endpoint():
@@ -322,14 +325,12 @@ def test_get_cookie_domain():
     staging_event = {"requestContext": {"stage": "stage"}}
     prod_event = {"requestContext": {"stage": "prod"}}
 
-    # Both should return the course domain (staging uses prod domain for cookies)
+    # Neither environment exposes its session cookie to sibling/student hosts
     staging_domain = get_cookie_domain(staging_event)
     prod_domain = get_cookie_domain(prod_event)
 
-    from e11.e11core.constants import COURSE_DOMAIN
-
-    assert staging_domain == COURSE_DOMAIN
-    assert prod_domain == COURSE_DOMAIN  # or COOKIE_DOMAIN, depending on config
+    assert staging_domain is None
+    assert prod_domain is None
 
 
 def test_resp_json_creates_valid_response():

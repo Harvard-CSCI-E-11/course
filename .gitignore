@@ -33,3 +33,6 @@ CLAUDE.md
 .env
 .envrc
 TAGS
+
+# Private local security finding inventory
+/SECURITY_ISSUES.md
